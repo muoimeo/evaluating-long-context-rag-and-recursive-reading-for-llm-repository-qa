@@ -1,0 +1,182 @@
+[
+  {
+    "id": "fastapi_01",
+    "dataset": "fastapi",
+    "type": "single-hop",
+    "difficulty": "easy",
+    "question": "How does FastAPI extract metadata for OpenAPI documentation from route decorators?",
+    "answer": "FastAPI uses the 'APIRoute' class to collect metadata like tags, summary, and description from the decorator parameters.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 415,
+        "line_end": 480
+      }
+    ]
+  },
+  {
+    "id": "fastapi_02",
+    "dataset": "fastapi",
+    "type": "multi-hop",
+    "difficulty": "medium",
+    "question": "Trace how a request body is validated using Pydantic models in FastAPI's dependency system.",
+    "answer": "The logic starts in the routing layer, which calls 'solve_dependencies' in the utils module to validate the body against the Pydantic schema.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 120,
+        "line_end": 155
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 540,
+        "line_end": 610
+      }
+    ]
+  },
+  {
+    "id": "boto3_01",
+    "dataset": "aws_boto3",
+    "type": "single-hop",
+    "difficulty": "easy",
+    "question": "What is the specific method used in Boto3 to upload a file directly to an S3 bucket?",
+    "answer": "Boto3 provides the 'upload_file' method, which is injected into the S3 client to handle multipart uploads automatically.",
+    "evidence": [
+      {
+        "file": "boto3/s3/inject.py",
+        "line_start": 80,
+        "line_end": 115
+      }
+    ]
+  },
+  {
+    "id": "hybrid_01",
+    "dataset": "hybrid",
+    "type": "cross-dataset",
+    "difficulty": "hard",
+    "question": "How can you pass a FastAPI 'UploadFile' stream directly to a Boto3 S3 'put_object' call without saving to disk?",
+    "answer": "You access the '.file' attribute (SpooledTemporaryFile) of the FastAPI 'UploadFile' object and pass it to the 'Body' parameter of the Boto3 'put_object' method.",
+    "evidence": [
+      {
+        "file": "fastapi/datastructures.py",
+        "line_start": 22,
+        "line_end": 45
+      },
+      {
+        "file": "boto3/s3/inject.py",
+        "line_start": 310,
+        "line_end": 345
+      }
+    ]
+  },
+  {
+    "id": "fastapi_03",
+    "dataset": "fastapi",
+    "type": "multi-hop",
+    "difficulty": "medium",
+    "question": "How does FastAPI handle asynchronous background tasks after a response is sent?",
+    "answer": "FastAPI uses the 'BackgroundTasks' class from Starlette, which is integrated into the routing logic to execute callables post-response.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 180,
+        "line_end": 210
+      },
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 240,
+        "line_end": 265
+      }
+    ]
+  },
+  {
+    "id": "boto3_02",
+    "dataset": "aws_boto3",
+    "type": "multi-hop",
+    "difficulty": "medium",
+    "question": "Explain the interaction between a Boto3 Session and an S3 Resource during initialization.",
+    "answer": "A Session creates a resource factory which then uses the service name 's3' to instantiate a high-level Resource object with specific S3 actions.",
+    "evidence": [
+      {
+        "file": "boto3/session.py",
+        "line_start": 320,
+        "line_end": 360
+      },
+      {
+        "file": "boto3/resources/factory.py",
+        "line_start": 65,
+        "line_end": 95
+      }
+    ]
+  },
+  {
+    "id": "fastapi_04",
+    "dataset": "fastapi",
+    "type": "single-hop",
+    "difficulty": "medium",
+    "question": "In which module does FastAPI implement the logic for converting Python type hints into JSON Schema for OpenAPI?",
+    "answer": "The core logic for JSON Schema generation from type hints is located in 'fastapi/openapi/utils.py'.",
+    "evidence": [
+      {
+        "file": "fastapi/openapi/utils.py",
+        "line_start": 150,
+        "line_end": 220
+      }
+    ]
+  },
+  {
+    "id": "hybrid_02",
+    "dataset": "hybrid",
+    "type": "cross-dataset",
+    "difficulty": "hard",
+    "question": "When building a FastAPI dependency that provides a Boto3 S3 client, what is the best practice for managing the client lifecycle?",
+    "answer": "Using a 'yield' statement in a FastAPI dependency ensures the Boto3 client is properly initialized and can execute cleanup logic if necessary.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 410,
+        "line_end": 445
+      },
+      {
+        "file": "boto3/session.py",
+        "line_start": 215,
+        "line_end": 240
+      }
+    ]
+  },
+  {
+    "id": "fastapi_05",
+    "dataset": "fastapi",
+    "type": "single-hop",
+    "difficulty": "easy",
+    "question": "How are custom exception handlers registered in a FastAPI application?",
+    "answer": "They are added to the 'exception_handlers' dictionary in the FastAPI class constructor or via the '@app.exception_handler' decorator.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 130,
+        "line_end": 175
+      }
+    ]
+  },
+  {
+    "id": "boto3_03",
+    "dataset": "aws_boto3",
+    "type": "multi-hop",
+    "difficulty": "hard",
+    "question": "Trace how Boto3 handles S3 Transfer Configurations (like multipart thresholds) for file uploads.",
+    "answer": "The S3 client uses a 'TransferConfig' object which is then passed to the 'S3Transfer' manager to decide between single and multipart uploads.",
+    "evidence": [
+      {
+        "file": "boto3/s3/transfer.py",
+        "line_start": 110,
+        "line_end": 160
+      },
+      {
+        "file": "boto3/s3/inject.py",
+        "line_start": 95,
+        "line_end": 130
+      }
+    ]
+  }
+]
