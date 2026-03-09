@@ -1,0 +1,77 @@
+import argparse
+from vector_store import VectorStore
+from llm_client import generate_answer
+from config import TOP_K_RETRIEVAL
+
+def build_rag_context(query: str, top_k: int = TOP_K_RETRIEVAL) -> str:
+    """Retrieve top-K chunks and format them with exact line numbers for citation."""
+    vs = VectorStore()
+    results = vs.retrieve(query, top_k=top_k)
+    
+    if not results:
+        print("Warning: No results retrieved from VectorStore.")
+        return ""
+        
+    context_blocks = []
+    
+    # Sort results to group chunks from the same file together logically
+    results.sort(key=lambda x: (x['metadata']['file'], x['metadata']['chunk_index']))
+    
+    current_file = None
+    for res in results:
+        meta = res['metadata']
+        file_path = meta['file']
+        chunk_idx = meta['chunk_index']
+        total_chunks = meta['total_chunks']
+        line_start = meta.get('line_start', '?')
+        line_end = meta.get('line_end', '?')
+        chunk_text = res['document']
+        
+        if file_path != current_file:
+            if current_file is not None:
+                context_blocks.append("\n")
+            context_blocks.append(f"--- FILE: {file_path} ---")
+            current_file = file_path
+            
+        context_blocks.append(f"[Chunk {chunk_idx + 1}/{total_chunks} | Lines {line_start}-{line_end}]")
+        
+        # Number the lines within this chunk for accurate citation
+        lines = chunk_text.split('\n')
+        for i, line in enumerate(lines):
+            actual_line_num = line_start + i if isinstance(line_start, int) else i + 1
+            context_blocks.append(f"{actual_line_num}: {line}")
+        
+    return "\n".join(context_blocks)
+
+def run_method_b(question: str, top_k: int = TOP_K_RETRIEVAL):
+    """Run Method B (Standard RAG) on a given query."""
+    print(f"Retrieving top {top_k} most relevant chunks from VectorStore...")
+    context = build_rag_context(question, top_k)
+    
+    print("\nSending context + query to LLM...")
+    result = generate_answer(prompt_context=context, question=question)
+    
+    return result
+
+def main():
+    parser = argparse.ArgumentParser(description="Run Method B: Standard RAG")
+    parser.add_argument("--query", type=str, required=True, help="Question to ask the repository")
+    parser.add_argument("--top-k", type=int, default=TOP_K_RETRIEVAL, help="Number of chunks to retrieve")
+    args = parser.parse_args()
+    
+    result = run_method_b(args.query, top_k=args.top_k)
+    
+    if result.get("success"):
+        print("\n" + "="*50)
+        print("ANSWER:")
+        print(result["answer"])
+        print("\nEVIDENCE:")
+        for ev in result["evidence"]:
+            print(f"  - {ev.get('file')} (Lines {ev.get('line_start')} to {ev.get('line_end')})")
+        print("="*50)
+        print(f"Metrics: Latency={result['latency']:.2f}s | Input Tokens={result['input_tokens']} | Output Tokens={result['output_tokens']}")
+    else:
+        print(f"\nError occurred: {result.get('error')}")
+
+if __name__ == "__main__":
+    main()

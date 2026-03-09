@@ -1,0 +1,7 @@
+openai>=1.0.0
+tiktoken
+chromadb
+pydantic
+python-dotenv
+tqdm
+sentence-transformers

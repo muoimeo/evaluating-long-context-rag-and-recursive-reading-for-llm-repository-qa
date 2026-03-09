@@ -8,12 +8,11 @@ This document outlines the rationale for selecting the datasets used to evaluate
 - **Complexity:** High. It involves complex Python type hints, dependency injection patterns, and modular routing.
 - **Rationale:** The modular nature of FastAPI allows for testing **multi-hop reasoning**, where the agent must traverse multiple files (e.g., from a route definition to a dependency utility) to answer a query.
 
-## 2. Technical Documentation: AWS Boto3 (S3 Section)
-- **Source:** AWS SDK for Python (Boto3) Documentation.
-- **Format:** Structured API reference.
-- **Scale:** Extensive, reaching the target corpus size of 200k–1M tokens when combined with the repository.
-- **Rationale:** - Technical documentation often suffers from **context rot** where crucial details (like specific parameter constraints) are lost in long prompts.
-    - It provides a benchmark for the Agent's ability to cite specific document sections accurately.
+## 2. Technical Documentation: AWS Lambda Developer Guide
+- **Source:** [https://github.com/awsdocs/aws-lambda-developer-guide](https://github.com/awsdocs/aws-lambda-developer-guide)
+- **Format:** Sample applications (Python, Node.js, Go, Java, etc.), IAM policy templates, and CloudFormation/SAM templates.
+- **Scale:** 22 sample apps, 31 IAM policy files, and 5 CloudFormation templates, reaching the target corpus size of 200k–1M tokens when combined with the repository.
+- **Rationale:** The multi-language sample apps (Python, Node.js, Go, Java) provide a rich source for **cross-file reasoning** and language comparison questions. IAM policies and CloudFormation templates allow testing the Agent's ability to cite specific configuration sections accurately.
 
 ## 3. Context-Rot Suitability
 The combined size of these datasets allows for a controlled "context-rot" experiment by:
