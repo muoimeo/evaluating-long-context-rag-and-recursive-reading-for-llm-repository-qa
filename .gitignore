@@ -4,3 +4,4 @@ dataset/
 docs_index.json
 chroma_db/
 results/
+.env
