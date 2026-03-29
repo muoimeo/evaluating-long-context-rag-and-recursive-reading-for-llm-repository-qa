@@ -1,3 +1,6 @@
 venv/
 __pycache__/
 dataset/
+docs_index.json
+chroma_db/
+results/

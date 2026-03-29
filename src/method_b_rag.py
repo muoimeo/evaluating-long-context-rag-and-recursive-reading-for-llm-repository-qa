@@ -4,21 +4,62 @@ from llm_client import generate_answer
 from config import TOP_K_RETRIEVAL
 
 def build_rag_context(query: str, top_k: int = TOP_K_RETRIEVAL) -> str:
-    """Retrieve top-K chunks and format them with exact line numbers for citation."""
+    """Retrieve top-K chunks, re-rank by source-code priority, and format with line numbers."""
     vs = VectorStore()
-    results = vs.retrieve(query, top_k=top_k)
+    
+    # 1. Expand retrieval pool: fetch 4x more candidates (e.g. 20 chunks if top_k is 5)
+    # This ensures core source code chunks have a chance to be retrieved even if 
+    # highly-semantic tutorial docs try to crowd them out.
+    results = vs.retrieve(query, top_k=top_k * 4)
     
     if not results:
         print("Warning: No results retrieved from VectorStore.")
         return ""
+    
+    # Re-rank: Apply a soft penalty/bonus multiplier to the semantic distance score.
+    # ChromaDB returns distance: lower score means more similar.
+    def adjust_score(res):
+        fp = res['metadata']['file']
+        score = res['score']
         
+        penalty = 1.0 # Default multiplier
+        
+        # 1. CORE SOURCE IMPLEMENTATION (Bonus / Priority 0)
+        if fp.startswith("fastapi/") and fp.endswith(".py"):
+            penalty = 0.8  # Strong bonus
+        elif fp.startswith("sample-apps/blank-python") and fp.endswith(".py"):
+            penalty = 0.8  # Strong bonus for specific target app
+        elif "sample-apps/" in fp and (fp.endswith(".py") or fp.endswith(".js") or fp.endswith(".go")):
+            penalty = 0.9  # Mild bonus for other sample apps
+            
+        # 2. DOCUMENTATION & TUTORIALS (Penalty / Priority 4)
+        elif "docs_src/" in fp or "docs/en/" in fp or "docs/zh/" in fp:
+            penalty = 1.6  # Heavy penalty for FastAPI tutorials
+        elif "ExampleCS/" in fp or fp.endswith(".cs"):
+            penalty = 1.5  # Penalize C# (we're focusing on Python Lambda usually)
+            
+        # 3. AWS Lambda pure documentation
+        elif fp.endswith(".md"):
+            penalty = 1.2
+            
+        # 4. CONFIG FILES (Heavy Penalty)
+        elif fp.endswith((".yml", ".yaml", ".json", ".txt", ".ini")):
+            penalty = 1.7
+            
+        return score * penalty
+    
+    # Sort by the adjusted distance score (lowest is best)
+    results.sort(key=lambda r: adjust_score(r))
+    
+    # Take only top_k after re-ranking
+    final_results = results[:top_k]
+    
+    # Sort for display so it reads linearly: group by file, then by chunk index
+    final_results.sort(key=lambda x: (x['metadata']['file'], x['metadata']['chunk_index']))
+    
     context_blocks = []
-    
-    # Sort results to group chunks from the same file together logically
-    results.sort(key=lambda x: (x['metadata']['file'], x['metadata']['chunk_index']))
-    
     current_file = None
-    for res in results:
+    for res in final_results:
         meta = res['metadata']
         file_path = meta['file']
         chunk_idx = meta['chunk_index']

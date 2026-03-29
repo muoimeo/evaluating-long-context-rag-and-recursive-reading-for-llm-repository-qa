@@ -1,0 +1,10 @@
+fastapi_01
+lambda_01
+fastapi_04
+fastapi_05
+fastapi_02
+fastapi_03
+lambda_02
+hybrid_01
+hybrid_02
+lambda_05

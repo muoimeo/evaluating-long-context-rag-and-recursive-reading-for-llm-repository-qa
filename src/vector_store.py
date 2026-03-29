@@ -9,8 +9,7 @@ from config import INDEX_PATH, VECTOR_DB_PATH, TOP_K_RETRIEVAL
 class VectorStore:
     def __init__(self, db_path=VECTOR_DB_PATH):
         self.db_path = db_path
-        # Use BAAI/bge-small-en-v1.5 as suggested: it's a top-performing small model on MTEB benchmarks
-        # and significantly outperforms all-MiniLM-L6-v2 for retrieval tasks while being nearly as fast.
+        # Use BAAI/bge-small-en-v1.5
         self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-small-en-v1.5")
         
         # Initialize ChromaDB persistent client

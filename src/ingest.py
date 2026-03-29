@@ -32,46 +32,74 @@ def should_ingest(file_path):
         return False
         
     # Exclude virtual environments, git history, and compiled caches
-    parts = file_path.split(os.sep)
+    parts = file_path.replace("\\", "/").split("/")
     if any(p in ('.git', 'venv', '__pycache__', 'node_modules', '.pytest_cache') for p in parts):
+        return False
+    
+    # CRITICAL: Exclude test directories, .github etc.
+    # We DO NOT exclude docs/ here because the AWS Lambda dataset IS documentation,
+    # and sometimes FastAPI docs are needed. We handle docs vs source bias via
+    # re-ranking in method_b_rag.py instead of hard filtering.
+    excluded_dirs = {'tests', 'scripts', '.github'}
+    if any(p in excluded_dirs for p in parts):
+        return False
+    
+    # Also exclude test files by name pattern
+    basename = os.path.basename(file_path)
+    if basename.startswith('test_') or basename.endswith('.test.py'):
         return False
         
     return True
 
-def chunk_by_lines(content, chunk_size):
+def chunk_by_lines(content, chunk_size, chunk_overlap=CHUNK_OVERLAP):
     """Split text into chunks by lines, tracking exact line_start and line_end.
-    Each chunk targets ~chunk_size tokens but always breaks on line boundaries."""
+    Includes an overlap of ~chunk_overlap tokens to preserve boundary context."""
     lines = content.split('\n')
     chunks = []
-    current_chunk_lines = []
-    current_tokens = 0
-    chunk_start_line = 1  # 1-indexed
     
-    for i, line in enumerate(lines):
-        line_tokens = len(enc.encode(line))
+    i = 0
+    while i < len(lines):
+        current_chunk_lines = []
+        current_tokens = 0
+        chunk_start_line = i + 1  # 1-indexed
         
-        # If adding this line would exceed chunk_size and we already have content, flush
-        if current_tokens + line_tokens > chunk_size and current_chunk_lines:
-            chunks.append({
-                "text": '\n'.join(current_chunk_lines),
-                "line_start": chunk_start_line,
-                "line_end": chunk_start_line + len(current_chunk_lines) - 1
-            })
-            current_chunk_lines = []
-            current_tokens = 0
-            chunk_start_line = i + 1  # next line (1-indexed)
+        # Build chunk forward
+        while i < len(lines):
+            line = lines[i]
+            line_tokens = len(enc.encode(line))
             
-        current_chunk_lines.append(line)
-        current_tokens += line_tokens
-        
-    # Flush remaining lines
-    if current_chunk_lines:
+            # If adding this line exceeds size (and we already have lines), break to flush
+            if current_tokens + line_tokens > chunk_size and current_chunk_lines:
+                break
+                
+            current_chunk_lines.append(line)
+            current_tokens += line_tokens
+            i += 1
+            
         chunks.append({
             "text": '\n'.join(current_chunk_lines),
             "line_start": chunk_start_line,
             "line_end": chunk_start_line + len(current_chunk_lines) - 1
         })
         
+        if i >= len(lines):
+            break
+            
+        # Backtrack `i` to create overlap for the next chunk
+        overlap_tokens = 0
+        overlap_lines = 0
+        # Walk back from the current line (`i-1`) upwards
+        for j in range(i - 1, max(-1, chunk_start_line - 2), -1):
+            t = len(enc.encode(lines[j]))
+            if overlap_tokens + t > chunk_overlap:
+                break
+            overlap_tokens += t
+            overlap_lines += 1
+            
+        # Ensure we always advance at least 1 line to prevent infinite loops
+        if overlap_lines > 0 and overlap_lines < len(current_chunk_lines):
+            i = i - overlap_lines
+
     return chunks
 
 def ingest_directory(base_dir):
@@ -101,6 +129,11 @@ def ingest_directory(base_dir):
                 rel_path = rel_path.replace("docs/aws-lambda-developer-guide/", "")
             elif rel_path.startswith("repos/fastapi/"):
                 rel_path = rel_path.replace("repos/fastapi/", "")
+                
+            # CRITICAL FIX: Prepend the file path to the content so the embedding model
+            # can mathematically associate the text with its source file.
+            prepended_content = f"FILE: {rel_path}\n{content}"
+            token_count = len(enc.encode(prepended_content))
             
             # If the file fits in one chunk, use it whole
             if token_count <= CHUNK_SIZE:
@@ -108,7 +141,7 @@ def ingest_directory(base_dir):
                     "file": rel_path,
                     "language": get_file_language(file_path),
                     "total_tokens": token_count,
-                    "content": content,
+                    "content": prepended_content, # Store with prepended FILE path
                     "chunk_index": 0,
                     "total_chunks": 1,
                     "line_start": 1,
@@ -118,11 +151,14 @@ def ingest_directory(base_dir):
                 # Line-aware chunking preserving exact line numbers
                 chunks = chunk_by_lines(content, CHUNK_SIZE)
                 for idx, chunk_info in enumerate(chunks):
+                    # Prepend file path to EACH chunk
+                    chunk_text_with_path = f"FILE: {rel_path}\n{chunk_info['text']}"
+                    
                     documents.append({
                         "file": rel_path,
                         "language": get_file_language(file_path),
-                        "total_tokens": len(enc.encode(chunk_info["text"])),
-                        "content": chunk_info["text"],
+                        "total_tokens": len(enc.encode(chunk_text_with_path)),
+                        "content": chunk_text_with_path, # Store with prepended FILE path
                         "chunk_index": idx,
                         "total_chunks": len(chunks),
                         "line_start": chunk_info["line_start"],

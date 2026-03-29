@@ -4,14 +4,29 @@ import argparse
 from llm_client import generate_answer
 from config import INDEX_PATH
 
-def build_long_context(index_path=INDEX_PATH, max_context_tokens=100000):
+# Deterministic seed for reproducibility across evaluation runs.
+# This ensures that the round-robin file ordering is identical every time,
+# which is critical for fair comparison and paper reproducibility.
+RANDOM_SEED = 42
+
+# Context window budget. Set to 50k tokens (not 100k) to:
+#   1. Be realistic — most commercial LLMs cap at 32k-128k
+#   2. Be FAIR vs RAG (top_k=5 ≈ 2500 tokens) and RLM (top_k=10 ≈ 5000 tokens)
+#   3. Leave buffer for system prompt + question + output generation
+MAX_CONTEXT_TOKENS = 50000
+
+
+def build_long_context(index_path=INDEX_PATH, max_context_tokens=MAX_CONTEXT_TOKENS):
     """Read actual source files in a fair, shuffled order to avoid repo ordering bias."""
     try:
         with open(index_path, 'r', encoding='utf-8') as f:
             docs = json.load(f)
     except FileNotFoundError:
         return ""
-        
+    
+    # Deterministic shuffle for reproducibility
+    random.seed(RANDOM_SEED)
+    
     # Get unique files and group by dataset source
     fastapi_files = []
     lambda_files = []
@@ -59,15 +74,24 @@ def build_long_context(index_path=INDEX_PATH, max_context_tokens=100000):
             # Rough token estimate (chars / 4)
             est_tokens = len(content) // 4 
             if total_estimated_tokens + est_tokens > max_context_tokens:
-                continue # Skip this file but keep trying smaller ones
-                
-            context_lines.append(f"--- FILE: {file_path} ---")
+                continue  # Skip this file but keep trying smaller ones
+            
+            lines = content.split('\n')
+            total_lines = len(lines)
+            
+            # Clear file boundary markers so LLM can distinguish files
+            context_lines.append(f"===== FILE START =====")
+            context_lines.append(f"PATH: {file_path}")
+            context_lines.append(f"LINES: 1-{total_lines}")
+            context_lines.append(f"---------------------")
             
             # Add line numbers to help LLM cite lines accurately
-            for i, line in enumerate(content.split('\n'), 1):
+            for i, line in enumerate(lines, 1):
                 context_lines.append(f"{i}: {line}")
                 
-            context_lines.append("\n")
+            context_lines.append(f"===== FILE END =====")
+            context_lines.append("")  # blank line separator
+            
             total_estimated_tokens += est_tokens
             files_added += 1
             
@@ -79,7 +103,7 @@ def build_long_context(index_path=INDEX_PATH, max_context_tokens=100000):
 
 def run_method_a(question: str):
     """Run the Long-Context baseline on a given question."""
-    print("Building long context (round-robin, shuffled)...")
+    print("Building long context (round-robin, shuffled, seed=42)...")
     context = build_long_context()
     print(f"Context built. Length: {len(context)} characters.")
     

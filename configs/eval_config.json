@@ -1,0 +1,43 @@
+{
+  "global": {
+    "answer_model": "qwen2.5:7b",
+    "answer_model_base_url": "http://localhost:11434/v1",
+    "answer_model_api_key": "ollama",
+    "temperature": 0.0,
+    "max_output_tokens": 2000,
+    "random_seed": 42,
+    "eval_dataset": "qa_dataset/seed_v1.json",
+    "eval_n_questions": 60
+  },
+  "longctx": {
+    "max_context_tokens": 50000,
+    "prompt_version": "v2",
+    "_notes": "Reads actual source files in round-robin interleaved order, capped at 50k tokens."
+  },
+  "rag": {
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "top_k": 5,
+    "retrieval_pool_multiplier": 4,
+    "prompt_version": "v3",
+    "_notes": "Retrieves top_k*4=20 candidates, re-ranks by source-priority heuristic, returns top 5."
+  },
+  "recursive": {
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "top_k": 10,
+    "max_reasoning_tokens": 300,
+    "early_stop_min_chunks": 3,
+    "early_stop_min_citations": 2,
+    "prompt_version": "v4",
+    "_notes": "Reads up to 10 chunks sequentially with structured state. Early-stop when confident."
+  },
+  "judge": {
+    "model": "__JUDGE_MODEL_PLACEHOLDER__",
+    "base_url": "__JUDGE_BASE_URL_PLACEHOLDER__",
+    "api_key": "__JUDGE_API_KEY_PLACEHOLDER__",
+    "temperature": 0.0,
+    "prompt_version": "judge_v1",
+    "_notes": "Judge model should be stronger than answer_model. Replace placeholders with your chosen judge API (e.g., GPT-4o-mini via OpenAI API, or a larger local model). Example: model='gpt-4o-mini', base_url='https://api.openai.com/v1', api_key='sk-...'"
+  }
+}

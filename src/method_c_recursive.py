@@ -4,14 +4,30 @@ import argparse
 import time
 from typing import List, Dict, Any
 from openai import OpenAI
-from config import OLLAMA_BASE_URL, API_KEY, MODEL_NAME, INDEX_PATH
+from config import OLLAMA_BASE_URL, API_KEY, MODEL_NAME, TOP_K_RETRIEVAL
 from vector_store import VectorStore
 
 client = OpenAI(base_url=OLLAMA_BASE_URL, api_key=API_KEY)
 
+# Maximum token budget for the reasoning state to prevent prompt bloat.
+# The LLM is instructed to keep reasoning under this limit.
+MAX_REASONING_TOKENS = 300
 
-def extract_from_chunk(query: str, file_path: str, chunk_text: str, line_start: int, line_end: int) -> Dict[str, Any]:
-    """Sub-LLM call: Read one chunk and extract information relevant to the query."""
+
+def read_and_reason(question: str, state: Dict, 
+                    file_path: str, chunk_text: str, 
+                    line_start: int, line_end: int,
+                    chunk_num: int, total_chunks: int) -> Dict[str, Any]:
+    """
+    Core RLM step: Read ONE chunk while carrying forward structured reasoning state.
+    
+    The LLM sees the ORIGINAL code (with line numbers) plus the current structured state.
+    It updates the state incrementally — no lossy summary stage.
+    
+    State is structured as:
+      { "known_facts": [...], "reasoning": "...", "open_questions": [...] }
+    to prevent drift and keep it compact.
+    """
     
     # Add line numbers to help the model cite accurately
     numbered_lines = []
@@ -19,22 +35,38 @@ def extract_from_chunk(query: str, file_path: str, chunk_text: str, line_start: 
         numbered_lines.append(f"{line_start + i}: {line}")
     numbered_text = '\n'.join(numbered_lines)
 
-    prompt = f"""You are reading a section of the file '{file_path}' (lines {line_start}-{line_end}).
+    # Format the structured state for the prompt
+    state_text = json.dumps(state, indent=2) if state["known_facts"] else "(Empty — this is the first chunk.)"
 
---- CONTENT ---
+    prompt = f"""You are reading chunk {chunk_num}/{total_chunks} from a code repository to answer a question.
+
+QUESTION: {question}
+
+--- YOUR STRUCTURED STATE ---
+{state_text}
+--- END STATE ---
+
+--- NEW CHUNK: {file_path} (Lines {line_start}-{line_end}) ---
 {numbered_text}
---- END ---
+--- END CHUNK ---
 
-QUERY: {query}
+INSTRUCTIONS:
+1. Read the new chunk carefully.
+2. If this chunk contains useful information, update the state:
+   - Add new facts to "known_facts" (keep each fact to ONE concise sentence)
+   - Update "reasoning" with your current thinking (max 2-3 sentences, do NOT repeat known_facts)
+   - Remove any "open_questions" that are now answered
+3. Do NOT repeat earlier facts. Do NOT restate facts already in known_facts.
+4. Keep the total state compact (under {MAX_REASONING_TOKENS} words).
+5. If this chunk is NOT useful, return the state unchanged.
 
-Extract information from this section that is useful for answering the query.
-If this section contains NO relevant information, respond with exactly: {{"relevant": false, "confidence": 0.0}}
-If it IS relevant, respond with:
+Respond in this exact JSON format:
 {{
-  "relevant": true,
-  "confidence": <float 0.0-1.0, how confident you are this chunk helps answer the query>,
-  "extracted_info": "<concise summary of what you found>",
-  "key_lines": [<list of line numbers that are most important>]
+  "known_facts": ["<fact 1>", "<fact 2>", "..."],
+  "reasoning": "<your current concise reasoning>",
+  "open_questions": ["<remaining unknowns>"],
+  "chunk_was_useful": <true or false>,
+  "confident_enough_to_answer": <true if you can already fully answer the question, false otherwise>
 }}
 Respond ONLY with valid JSON."""
 
@@ -43,13 +75,14 @@ Respond ONLY with valid JSON."""
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=500
+            max_tokens=800
         )
         
         content = response.choices[0].message.content.strip()
-        tokens_used = response.usage.prompt_tokens + response.usage.completion_tokens if response.usage else 0
+        tokens_in = response.usage.prompt_tokens if response.usage else 0
+        tokens_out = response.usage.completion_tokens if response.usage else 0
         
-        # Try to parse JSON from the response
+        # Parse JSON response
         try:
             result = json.loads(content)
         except json.JSONDecodeError:
@@ -60,49 +93,66 @@ Respond ONLY with valid JSON."""
                     json_str = json_str[4:]
                 result = json.loads(json_str.strip())
             else:
-                result = {"relevant": False}
+                # If we can't parse, return state unchanged
+                result = {
+                    "known_facts": state.get("known_facts", []),
+                    "reasoning": state.get("reasoning", ""),
+                    "open_questions": state.get("open_questions", []),
+                    "chunk_was_useful": False,
+                    "confident_enough_to_answer": False
+                }
         
-        result["tokens_used"] = tokens_used
-        result["file"] = file_path
-        result["line_start"] = line_start
-        result["line_end"] = line_end
+        result["tokens_in"] = tokens_in
+        result["tokens_out"] = tokens_out
         return result
         
     except Exception as e:
-        return {"relevant": False, "error": str(e), "tokens_used": 0}
+        return {
+            "known_facts": state.get("known_facts", []),
+            "reasoning": state.get("reasoning", ""),
+            "open_questions": state.get("open_questions", []),
+            "chunk_was_useful": False,
+            "confident_enough_to_answer": False,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "error": str(e)
+        }
 
 
-def synthesize_answer(query: str, buffer: List[Dict]) -> Dict[str, Any]:
-    """Final LLM call: Combine all extracted info from the buffer into a final answer with citations."""
+def final_answer(question: str, state: Dict, citations: List[Dict]) -> Dict[str, Any]:
+    """
+    Final step: Convert the accumulated structured state into a final answer.
     
-    gathered_info = []
-    for i, item in enumerate(buffer):
-        gathered_info.append(
-            f"[Source {i+1}] File: {item['file']} (Lines {item['line_start']}-{item['line_end']})\n"
-            f"  Info: {item.get('extracted_info', 'N/A')}\n"
-            f"  Key lines: {item.get('key_lines', [])}"
-        )
+    Citations are system-tracked (grounded), not LLM-generated, so they are
+    guaranteed to reference real chunks that were actually read.
+    """
     
-    info_text = "\n\n".join(gathered_info)
+    # Format citations for reference
+    cite_text = "\n".join(
+        f"  - {c['file']} (Lines {c['line_start']}-{c['line_end']})" 
+        for c in citations
+    ) if citations else "  (none gathered)"
     
-    prompt = f"""You have read through multiple sections of a code repository and documentation.
-Here is the information gathered from reading:
+    state_text = json.dumps(state, indent=2)
+    
+    prompt = f"""Based on your reading of multiple code chunks, provide a final answer.
 
-{info_text}
+QUESTION: {question}
 
----
-QUERY: {query}
+--- YOUR ACCUMULATED STATE ---
+{state_text}
+--- END STATE ---
 
-Based ONLY on the information gathered above, provide:
-1. A clear, accurate answer to the query  
-2. Exact citations with file paths and line ranges
+--- GROUNDED CITATIONS (verified source locations) ---
+{cite_text}
+--- END CITATIONS ---
+
+Provide your final answer using ONLY the known_facts and reasoning from your state.
+Do NOT generate your own citations or evidence — the system will automatically attach the grounded citations listed above.
 
 Respond in this exact JSON format:
 {{
-  "answer": "<your answer>",
-  "evidence": [
-    {{"file": "<file path>", "line_start": <int>, "line_end": <int>}}
-  ]
+  "answer": "<your complete, accurate answer>"
 }}
 Respond ONLY with valid JSON."""
 
@@ -115,7 +165,8 @@ Respond ONLY with valid JSON."""
         )
         
         content = response.choices[0].message.content.strip()
-        tokens_used = response.usage.prompt_tokens + response.usage.completion_tokens if response.usage else 0
+        tokens_in = response.usage.prompt_tokens if response.usage else 0
+        tokens_out = response.usage.completion_tokens if response.usage else 0
         
         try:
             result = json.loads(content)
@@ -126,109 +177,170 @@ Respond ONLY with valid JSON."""
                     json_str = json_str[4:]
                 result = json.loads(json_str.strip())
             else:
-                return {"answer": content, "evidence": [], "tokens_used": tokens_used}
+                return {"answer": content, "evidence": citations, 
+                        "tokens_in": tokens_in, "tokens_out": tokens_out}
         
-        result["tokens_used"] = tokens_used
+        result["tokens_in"] = tokens_in
+        result["tokens_out"] = tokens_out
         return result
         
     except Exception as e:
-        return {"answer": f"Error: {e}", "evidence": [], "tokens_used": 0}
+        return {"answer": f"Error: {e}", "evidence": [], 
+                "tokens_in": 0, "tokens_out": 0}
 
 
-# Minimum confidence score to accept a chunk into the buffer.
-# Chunks below this threshold are discarded to reduce noise/hallucination.
-CONFIDENCE_THRESHOLD = 0.4
-
-def run_method_c(question: str, top_k: int = 10) -> Dict[str, Any]:
+def run_method_c(question: str, top_k: int = TOP_K_RETRIEVAL) -> Dict[str, Any]:
     """
-    Run Method C: Recursive Reading (RLM-style).
+    Run Method C: Recursive Language Model (RLM) — True Sequential Reading.
     
-    Flow:
-      query → retrieve candidate chunks → for each chunk: sub-LLM extracts info
-      → confidence filter → store in buffer → final LLM synthesizes answer from buffer
+    Architecture (per RLM paper):
+      retrieve chunks → state = {} → for chunk in chunks:
+        state = LLM(state + chunk) → if confident: early stop
+      → final_answer = LLM(state)
+    
+    Key design decisions:
+      1. Structured state {known_facts, reasoning, open_questions} prevents drift
+      2. Reasoning capped at ~300 words to prevent prompt bloat
+      3. Citations are SYSTEM-TRACKED (grounded), not LLM-generated
+      4. Chunks read in similarity order (best-match first) 
+      5. Early-stop when LLM is confident enough to answer
     """
     print("=" * 50)
-    print("Method C: Recursive Reading (RLM)")
+    print("Method C: Recursive Language Model (RLM)")
     print("=" * 50)
     
     start_time = time.time()
-    total_tokens = 0
+    total_tokens_in = 0
+    total_tokens_out = 0
     model_calls = 0
     
-    # Step 1: Use vector store to find candidate chunks
+    # Step 1: Retrieve candidate chunks
     print(f"\nStep 1: Retrieving top-{top_k} candidate chunks...")
     vs = VectorStore()
     results = vs.retrieve(question, top_k=top_k)
     
     if not results:
-        return {"success": False, "error": "No chunks retrieved.", "latency": time.time() - start_time}
+        return {
+            "success": False, 
+            "error": "No chunks retrieved.", 
+            "latency": time.time() - start_time,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "model_calls": 0
+        }
     
-    print(f"  Found {len(results)} candidate chunks.")
+    # Keep retrieval order (sorted by similarity score, best match first)
+    # Do NOT re-sort by file/chunk_index — the retriever's ranking is the
+    # best signal for which chunks to read first.
+    print(f"  Found {len(results)} candidate chunks. Reading in similarity order...\n")
     
-    # Step 2: Read each chunk with a sub-LLM call (the "recursive reading" step)
-    print("\nStep 2: Reading chunks one-by-one with sub-LLM...")
-    buffer = []
+    # Step 2: Sequential reading — the core RLM loop
+    # Structured state prevents drift; system-tracked citations prevent hallucination
+    state = {
+        "known_facts": [],
+        "reasoning": "",
+        "open_questions": [question]
+    }
+    grounded_citations = []  # System-tracked, NOT LLM-generated
     
     for i, res in enumerate(results):
         meta = res['metadata']
         file_path = meta['file']
-        chunk_idx = meta['chunk_index']
         line_start = meta.get('line_start', 1)
         line_end = meta.get('line_end', 1)
         chunk_text = res['document']
         
         print(f"  [{i+1}/{len(results)}] Reading {file_path} (lines {line_start}-{line_end})...", end=" ")
         
-        extraction = extract_from_chunk(question, file_path, chunk_text, line_start, line_end)
+        step_result = read_and_reason(
+            question=question,
+            state=state,
+            file_path=file_path,
+            chunk_text=chunk_text,
+            line_start=line_start,
+            line_end=line_end,
+            chunk_num=i + 1,
+            total_chunks=len(results)
+        )
+        
         model_calls += 1
-        total_tokens += extraction.get("tokens_used", 0)
+        total_tokens_in += step_result.get("tokens_in", 0)
+        total_tokens_out += step_result.get("tokens_out", 0)
         
-        is_relevant = extraction.get("relevant", False)
-        confidence = extraction.get("confidence", 0.0)
+        # Update the structured state — MERGE facts, don't overwrite
+        new_facts = step_result.get("known_facts", [])
+        for f in new_facts:
+            if f not in state["known_facts"]:
+                state["known_facts"].append(f)
         
-        if is_relevant and confidence >= CONFIDENCE_THRESHOLD:
-            buffer.append(extraction)
-            print(f"✓ RELEVANT (confidence={confidence:.2f})")
-        elif is_relevant:
-            print(f"✗ low confidence ({confidence:.2f} < {CONFIDENCE_THRESHOLD})")
-        else:
-            print("✗ not relevant")
+        # Enforce token budget: keep only the most recent 20 facts
+        if len(state["known_facts"]) > 20:
+            state["known_facts"] = state["known_facts"][-20:]
+        
+        # Reasoning and open_questions can be replaced (they're current-state, not cumulative)
+        state["reasoning"] = step_result.get("reasoning", state["reasoning"])
+        state["open_questions"] = step_result.get("open_questions", state["open_questions"])
+        
+        useful = step_result.get("chunk_was_useful", False)
+        
+        # GROUNDED citation: if the LLM says chunk was useful, we record the
+        # actual chunk metadata (file path + line range) — NOT what the LLM says.
+        if useful:
+            grounded_citations.append({
+                "file": file_path,
+                "line_start": line_start,
+                "line_end": line_end
+            })
+        
+        # Early-stop: if LLM is confident enough, skip remaining chunks
+        confident = step_result.get("confident_enough_to_answer", False)
+        print(f"{'✓ USEFUL' if useful else '— skipped'} | {'🎯 CONFIDENT' if confident else ''} ({len(grounded_citations)} citations)")
+        
+        # Early-stop: require at least 3 chunks read AND 2 citations to avoid premature answers
+        if confident and len(grounded_citations) >= 2 and i >= 2:
+            print(f"\n  ⚡ Early stop at chunk {i+1}/{len(results)} — model is confident.")
+            break
     
-    print(f"\n  Buffer: {len(buffer)} high-confidence chunks out of {len(results)} candidates.")
+    print(f"\n  Sequential reading complete. {len(grounded_citations)} grounded citations.")
     
-    if not buffer:
+    if not state["known_facts"] and not state["reasoning"].strip():
         return {
-            "success": False, 
-            "error": "No relevant information found in any chunk.",
+            "success": False,
+            "error": "No relevant information found after reading all chunks.",
             "latency": time.time() - start_time,
-            "input_tokens": total_tokens,
-            "output_tokens": 0,
+            "input_tokens": total_tokens_in,
+            "output_tokens": total_tokens_out,
             "model_calls": model_calls
         }
     
-    # Step 3: Synthesize final answer from buffer
-    print("\nStep 3: Synthesizing final answer from buffer...")
-    synthesis = synthesize_answer(question, buffer)
+    # Step 3: Final answer from accumulated structured state
+    print("\nStep 3: Generating final answer from structured state...")
+    answer_result = final_answer(question, state, grounded_citations)
     model_calls += 1
-    total_tokens += synthesis.get("tokens_used", 0)
+    total_tokens_in += answer_result.get("tokens_in", 0)
+    total_tokens_out += answer_result.get("tokens_out", 0)
     
     latency = time.time() - start_time
     
+    # ALWAYS use grounded citations — never trust LLM-generated evidence
+    # This completely prevents citation hallucination in the final output.
+    evidence = grounded_citations
+    
     return {
         "success": True,
-        "answer": synthesis.get("answer", ""),
-        "evidence": synthesis.get("evidence", []),
+        "answer": answer_result.get("answer", ""),
+        "evidence": evidence,
         "latency": latency,
-        "input_tokens": total_tokens,  # approximate total
-        "output_tokens": 0,
+        "input_tokens": total_tokens_in,
+        "output_tokens": total_tokens_out,
         "model_calls": model_calls
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Method C: Recursive Reading (RLM)")
+    parser = argparse.ArgumentParser(description="Run Method C: Recursive Language Model (RLM)")
     parser.add_argument("--query", type=str, required=True, help="Question to ask")
-    parser.add_argument("--top-k", type=int, default=10, help="Number of candidate chunks to read")
+    parser.add_argument("--top-k", type=int, default=TOP_K_RETRIEVAL, help="Number of candidate chunks to read")
     args = parser.parse_args()
     
     result = run_method_c(args.query, top_k=args.top_k)
@@ -241,7 +353,7 @@ def main():
         for ev in result["evidence"]:
             print(f"  - {ev.get('file')} (Lines {ev.get('line_start')} to {ev.get('line_end')})")
         print("="*50)
-        print(f"Metrics: Latency={result['latency']:.2f}s | Total Tokens≈{result.get('input_tokens')} | Model Calls={result.get('model_calls')}")
+        print(f"Metrics: Latency={result['latency']:.2f}s | Tokens(in)={result.get('input_tokens')} | Tokens(out)={result.get('output_tokens')} | Model Calls={result.get('model_calls')}")
     else:
         print(f"\nError occurred: {result.get('error')}")
 
