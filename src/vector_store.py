@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import hashlib
 import chromadb
 from chromadb.utils import embedding_functions
 from tqdm import tqdm
@@ -21,8 +22,40 @@ class VectorStore:
             name=self.collection_name,
             embedding_function=self.embedding_fn
         )
+        self.manifest_path = os.path.join(self.db_path, "index_manifest.json")
+
+    def _index_manifest(self, index_path: str) -> dict:
+        with open(index_path, "rb") as f:
+            payload = f.read()
+        return {
+            "index_path": os.path.abspath(index_path),
+            "index_sha256": hashlib.sha256(payload).hexdigest(),
+            "collection_name": self.collection_name,
+        }
+
+    def write_manifest(self, index_path: str):
+        os.makedirs(self.db_path, exist_ok=True)
+        with open(self.manifest_path, "w", encoding="utf-8") as f:
+            json.dump(self._index_manifest(index_path), f, indent=2)
+
+    def validate_manifest(self, index_path: str, raise_on_mismatch: bool = False) -> bool:
+        if not os.path.exists(self.manifest_path):
+            if raise_on_mismatch:
+                raise RuntimeError("Vector index manifest missing. Rebuild the vector store cleanly.")
+            return False
+        with open(self.manifest_path, "r", encoding="utf-8") as f:
+            current = json.load(f)
+        expected = self._index_manifest(index_path)
+        ok = (current.get("index_sha256") == expected.get("index_sha256") and 
+              os.path.normcase(current.get("index_path", "")) == os.path.normcase(expected.get("index_path", "")))
+        if not ok and raise_on_mismatch:
+            raise RuntimeError(
+                "Vector index manifest mismatch. Rebuild the vector store cleanly.\n"
+                f"Expected: {expected}\nFound: {current}"
+            )
+        return ok
         
-    def build(self, index_path=INDEX_PATH, batch_size=100):
+    def build(self, index_path=INDEX_PATH, batch_size=100, clean: bool = False):
         """Build the vector index from the chunked JSON file."""
         print(f"Loading indexed documents from {index_path}...")
         try:
@@ -31,6 +64,16 @@ class VectorStore:
         except FileNotFoundError:
             print(f"Error: {index_path} not found. Run 'python src/ingest.py' first.")
             return
+
+        if clean:
+            try:
+                self.client.delete_collection(self.collection_name)
+            except Exception:
+                pass
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                embedding_function=self.embedding_fn
+            )
 
         print(f"Loaded {len(documents)} chunks. Preparing for insertion...")
         
@@ -55,7 +98,7 @@ class VectorStore:
             }
             metadatas.append(meta)
             
-        print(f"Inserting {len(ids)} chunks into ChromaDB at {self.db_path} (this may take a while)...")
+        print(f"Inserting {len(ids)} chunks into ChromaDB at {self.db_path}")
         
         # Insert in batches to avoid memory/API limits
         for i in tqdm(range(0, len(ids), batch_size), desc="Embedding batches"):
@@ -69,7 +112,7 @@ class VectorStore:
                 documents=batch_texts,
                 metadatas=batch_metadatas
             )
-            
+        self.write_manifest(index_path)
         print(f"Index built successfully. Collection '{self.collection_name}' has {self.collection.count()} items.")
         
     def retrieve(self, query, top_k=TOP_K_RETRIEVAL):
@@ -97,6 +140,8 @@ class VectorStore:
 def main():
     parser = argparse.ArgumentParser(description="Manage the vector store for RAG.")
     parser.add_argument("--build", action="store_true", help="Build/update the vector database from the indexed JSON")
+    parser.add_argument("--clean", action="store_true", help="Recreate the collection before building")
+    parser.add_argument("--check-manifest", action="store_true", help="Fail if the vector index manifest mismatches the current index file")
     parser.add_argument("--query", type=str, help="Test a retrieve query")
     parser.add_argument("--top-k", type=int, default=5, help="Number of results to retrieve for test query")
     args = parser.parse_args()
@@ -108,7 +153,10 @@ def main():
     vs = VectorStore()
     
     if args.build:
-        vs.build()
+        vs.build(clean=args.clean)
+    if args.check_manifest:
+        ok = vs.validate_manifest(INDEX_PATH, raise_on_mismatch=False)
+        print("Manifest OK" if ok else "Manifest mismatch or missing")
         
     if args.query:
         print(f"\nSearching for: '{args.query}'")

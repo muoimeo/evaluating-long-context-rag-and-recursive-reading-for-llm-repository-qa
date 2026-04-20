@@ -5,3 +5,4 @@ pydantic
 python-dotenv
 tqdm
 sentence-transformers
+bert-score

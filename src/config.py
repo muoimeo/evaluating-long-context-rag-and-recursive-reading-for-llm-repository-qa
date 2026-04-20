@@ -4,10 +4,22 @@ from dotenv import load_dotenv
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# --- LLM Configuration (Ollama / Qwen2.5) ---
-# We use the OpenAI compatible endpoint provided by Ollama
+import json
+
+# Try to load model from eval_config
+eval_config_path = os.path.join(os.path.dirname(__file__), "..", "configs", "eval_config.json")
+eval_model = "qwen2.5:7b"
+try:
+    if os.path.exists(eval_config_path):
+        with open(eval_config_path, "r", encoding="utf-8") as f:
+            eval_cfg = json.load(f)
+            eval_model = eval_cfg.get("global", {}).get("answer_model", "qwen2.5:7b")
+except Exception:
+    pass
+
+# --- LLM Configuration (Ollama) ---
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "qwen2.5:7b")
+MODEL_NAME = os.getenv("MODEL_NAME", eval_model)
 API_KEY = os.getenv("API_KEY", "ollama")
 
 # --- Ingestion & RAG Configuration ---

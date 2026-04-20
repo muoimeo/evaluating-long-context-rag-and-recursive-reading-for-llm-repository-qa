@@ -20,52 +20,95 @@ from typing import Dict, Any, List
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
+# EARLY ARG PARSE FOR DYNAMIC MODEL CONFIGURATION
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument("--model", type=str, default=None)
+_args, _ = _parser.parse_known_args()
+if _args.model:
+    os.environ["MODEL_NAME"] = _args.model
+
 from config import OLLAMA_BASE_URL, API_KEY, MODEL_NAME
 from tqdm import tqdm
+from pipeline_schema import (
+    ERROR_EMPTY,
+    ERROR_MALFORMED_JSON,
+    ERROR_NO_CITATION,
+    ERROR_TIMEOUT,
+    ERROR_TOOL,
+    normalize_reasoning_type,
+    resolve_recursive_top_k,
+)
 
 from method_a_longcontext import run_method_a
 from method_b_rag import run_method_b
 from method_c_recursive import run_method_c
 
 
-def classify_error(output: Dict) -> str:
-    """Assign a fine-grained error_type tag based on what went wrong."""
-    if not output.get("success", False):
-        err = str(output.get("error", "")).lower()
-        if "timeout" in err:
-            return "timeout"
-        if "json" in err or "parse" in err or "decode" in err:
-            return "malformed_json_unrecovered"
-        return "tool_error"
-    answer = output.get("answer", "").strip()
-    evidence = output.get("evidence", [])
-    if not answer or answer.lower().startswith("i don't have"):
-        return "empty_answer"
-    if not evidence:
-        return "no_citation"
-    return None  # No error
+def normalize_answer_text(answer: Any) -> str:
+    """Coerce model outputs into a stable string for downstream evaluation."""
+    if answer is None:
+        return ""
+    if isinstance(answer, str):
+        return answer
+    if isinstance(answer, dict):
+        if isinstance(answer.get("answer"), str):
+            return answer["answer"]
+        try:
+            return json.dumps(answer, ensure_ascii=False)
+        except TypeError:
+            return str(answer)
+    if isinstance(answer, list):
+        try:
+            return json.dumps(answer, ensure_ascii=False)
+        except TypeError:
+            return str(answer)
+    return str(answer)
+
+
+def classify_error(result: Dict[str, Any]) -> str | None:
+    """Classify method output into an error type, or None if ok."""
+    if result.get("success"):
+        answer = result.get("answer", "")
+        if not answer or not str(answer).strip():
+            return ERROR_EMPTY
+        return None  # No error
+
+    err = str(result.get("error", ""))
+    if "timeout" in err.lower() or "timed out" in err.lower():
+        return ERROR_TIMEOUT
+    if "json" in err.lower() or "parse" in err.lower() or "decode" in err.lower():
+        return ERROR_MALFORMED_JSON
+    return ERROR_TOOL
 
 
 def run_inference(qa_file: str, method_name: str, output_dir: str,
-                  config_path: str, num_samples: int = None) -> str:
+                  config_path: str, num_samples: int = None,
+                  subset_ids: set = None) -> str:
     """Run inference for one method and save raw predictions."""
     with open(qa_file, "r", encoding="utf-8") as f:
         dataset = json.load(f)
+
+    if subset_ids:
+        dataset = [q for q in dataset if q["id"] in subset_ids]
+        print(f"Loaded {len(dataset)} questions using subset filter.")
+
     if num_samples:
         dataset = dataset[:num_samples]
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_file = os.path.join(output_dir, f"predictions_{method_name.lower()}_{timestamp}.jsonl")
 
-    # Load and snapshot the run config
+    # Snapshot the eval config
     run_config = {}
-    if os.path.exists(config_path):
+    if os.path.isfile(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             run_config = json.load(f)
     run_config["run_timestamp"] = timestamp
     run_config["method"] = method_name
     run_config["qa_file"] = qa_file
     run_config["num_samples"] = num_samples or len(dataset)
+    if method_name == "C":
+        run_config["resolved_recursive_top_k"] = resolve_recursive_top_k(run_config, default=10)
 
     config_out = os.path.join(output_dir, f"run_config_{method_name.lower()}_{timestamp}.json")
     with open(config_out, "w", encoding="utf-8") as f:
@@ -74,48 +117,65 @@ def run_inference(qa_file: str, method_name: str, output_dir: str,
     print(f"\nEvaluating Method {method_name} on {len(dataset)} questions...")
     print(f"Saving predictions to: {out_file}")
 
-    records = []
-    with open(out_file, "w", encoding="utf-8") as out:
-        for item in tqdm(dataset, desc=f"Method {method_name}"):
-            question = item["question"]
+    with open(out_file, "w", encoding="utf-8") as fout:
+        for i, record in enumerate(tqdm(dataset, desc=f"Method {method_name}")):
+            question = record["question"]
+            q_id = record["id"]
+            reasoning_type = normalize_reasoning_type(record)
+
+            row = {
+                "id": q_id,
+                "method": method_name,
+                "dataset": record.get("dataset", "unknown"),
+                "difficulty": record.get("difficulty", "unknown"),
+                "reasoning_type": reasoning_type,
+                "question": question,
+            }
 
             try:
                 if method_name == "A":
-                    output = run_method_a(question)
+                    result = run_method_a(question)
                 elif method_name == "B":
-                    output = run_method_b(question)
+                    result = run_method_b(question)
                 elif method_name == "C":
-                    output = run_method_c(question, top_k=run_config.get("top_k_rlm", 10))
+                    top_k = resolve_recursive_top_k(run_config, default=10)
+                    result = run_method_c(question, top_k=top_k)
                 else:
                     raise ValueError(f"Unknown method: {method_name}")
+
+                error_type = classify_error(result)
+                row.update({
+                    "predicted_answer": normalize_answer_text(result.get("answer", "")),
+                    "predicted_evidence": result.get("evidence", []),
+                    "success": error_type is None,
+                    "error_type": error_type,
+                    "raw_error": result.get("error"),
+                    "raw_warning": result.get("warning"),
+                    "latency_sec": result.get("latency", 0.0),
+                    "input_tokens": result.get("input_tokens", 0),
+                    "output_tokens": result.get("output_tokens", 0),
+                    "model_calls": result.get("model_calls", 1),
+                    "run_config_file": config_out,
+                })
+
             except Exception as e:
-                output = {"success": False, "error": str(e),
-                          "latency": 0.0, "input_tokens": 0,
-                          "output_tokens": 0, "model_calls": 1}
+                row.update({
+                    "predicted_answer": "",
+                    "predicted_evidence": [],
+                    "success": False,
+                    "error_type": ERROR_MALFORMED_JSON,
+                    "raw_error": str(e),
+                    "raw_warning": None,
+                    "latency_sec": 0.0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "model_calls": 1,
+                    "run_config_file": config_out,
+                })
 
-            error_type = classify_error(output)
+            fout.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-            record = {
-                "id": item["id"],
-                "method": method_name,
-                "dataset": item.get("dataset", "unknown"),
-                "difficulty": item.get("difficulty", "unknown"),
-                "expected_reasoning_type": item.get("expected_reasoning_type", "unknown"),
-                "question": question,
-                "predicted_answer": output.get("answer", ""),
-                "predicted_evidence": output.get("evidence", []),
-                "success": output.get("success", False),
-                "error_type": error_type,
-                "latency_sec": output.get("latency", 0.0),
-                "input_tokens": output.get("input_tokens", 0),
-                "output_tokens": output.get("output_tokens", 0),
-                "model_calls": output.get("model_calls", 1),
-                "run_config_file": config_out
-            }
-            out.write(json.dumps(record) + "\n")
-            records.append(record)
-
-    print(f"Done. {len(records)} predictions saved.")
+    print(f"Done. {len(dataset)} predictions saved.")
     return out_file
 
 
@@ -127,7 +187,11 @@ def main():
     parser.add_argument("--samples", type=int, default=None,
                         help="Limit questions for fast testing")
     parser.add_argument("--output-dir", type=str, default="results/raw")
+    parser.add_argument("--subset", type=str, default="",
+                        help="Path to a text file with question IDs (one per line)")
     parser.add_argument("--config", type=str, default="configs/eval_config.json")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Force override the answer_model from config")
     args = parser.parse_args()
 
     if os.path.basename(os.getcwd()) == "src":
@@ -135,11 +199,24 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    subset_ids = None
+    if args.subset:
+        with open(args.subset, "r", encoding="utf-8") as f:
+            subset_ids = {line.strip() for line in f if line.strip()}
+        print(f"Subset filter: {len(subset_ids)} question IDs loaded from {args.subset}")
+
     methods = ["A", "B", "C"] if args.method == "all" else [args.method]
     for m in methods:
-        run_inference(args.qa_file, m, args.output_dir, args.config, args.samples)
+        run_inference(
+            qa_file=args.qa_file,
+            method_name=m,
+            output_dir=args.output_dir,
+            config_path=args.config,
+            num_samples=args.samples,
+            subset_ids=subset_ids,
+        )
 
-    print(f"\nAll inference complete. Run score.py to compute metrics.")
+    print("\nAll inference complete. Run score.py to compute metrics.")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,9 @@
-fastapi_v3_01
 fastapi_v3_10
 lambda_v3_01
 lambda_v3_16
 fastapi_v3_16
 fastapi_v3_04
 lambda_v3_14
-lambda_v3_19
 fastapi_v3_05
 lambda_v3_24
 hybrid_v3_03

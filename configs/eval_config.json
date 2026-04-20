@@ -6,7 +6,7 @@
     "temperature": 0.0,
     "max_output_tokens": 2000,
     "random_seed": 42,
-    "eval_dataset": "qa_dataset/seed_v1.json",
+    "eval_dataset": "qa_dataset/seed_v0.json",
     "eval_n_questions": 60
   },
   "longctx": {
@@ -25,12 +25,13 @@
   "recursive": {
     "chunk_size": 512,
     "chunk_overlap": 64,
-    "top_k": 10,
-    "max_reasoning_tokens": 300,
-    "early_stop_min_chunks": 3,
-    "early_stop_min_citations": 2,
-    "prompt_version": "v4",
-    "_notes": "Reads up to 10 chunks sequentially with structured state. Early-stop when confident."
+    "top_k": 5,
+    "max_verified_facts": 18,
+    "followup_rounds": 1,
+    "followup_query_limit": 3,
+    "followup_read_k": 3,
+    "prompt_version": "v5",
+    "_notes": "Structure-aware iterative reader with feasible local-model budget: reads up to 5 initial chunks, performs 1 bounded follow-up round over up to 3 chunks, extracts typed evidence-bound facts, and stops on typed evidence coverage/no-progress rather than model self-confidence."
   },
   "judge": {
     "model": "__JUDGE_MODEL_PLACEHOLDER__",

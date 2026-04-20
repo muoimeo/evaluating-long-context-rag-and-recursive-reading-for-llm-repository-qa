@@ -42,9 +42,9 @@
 
 ---
 
-## 2. Citation Metrics — Two-Layer, 5 Fields
+## 2. Citation Metrics — File, Coverage, and Span Tightness
 
-> **IMPORTANT:** Report all five independently. Never collapse to one "citation score."
+> **IMPORTANT:** Report citation dimensions independently. Do not collapse file correctness, evidence coverage, span tightness, and LLM support into one score.
 
 ### Layer 1 — File-Level (Citation Hit@File)
 
@@ -59,12 +59,22 @@
 - Basename match accepted if: `basename(pred) == basename(gt)` AND one path is a suffix of the other
 - Case-insensitive for `.md`, `.yml`, `.yaml` files; case-sensitive for `.py`, `.js`, `.go`
 
-### Layer 2 — Evidence Localization
+### Layer 2 — Evidence Coverage and Span Tightness
 
 | Field | Definition |
 |---|---|
-| `line_iou` | For each matched (pred_file, gt_file) pair: `intersection_lines / union_lines`. Average over all matched GT files. |
-| `citation_support_score` | `file_match × line_iou` for each GT citation, averaged. (0 if file unmatched) |
+| `citation_containment_recall` | Fraction of each gold span contained inside predicted spans on the same file: `overlap_lines / gold_lines`. Rewards retrieving a chunk that fully contains the gold evidence. |
+| `citation_span_precision` | Fraction of predicted citation lines that overlap gold spans on the same file: `overlap_lines / predicted_lines`. Penalizes overly broad chunks. |
+| `citation_span_f2` | F-beta over span precision/containment recall with `beta=2`, prioritizing coverage over tightness. |
+| `citation_weighted_span_score` | `0.7 * citation_containment_recall + 0.3 * citation_span_precision`. |
+| `evidence_line_iou` | Legacy localization: `intersection_lines / union_lines`. Kept for continuity, but no longer the primary span metric. |
+| `citation_support_score` | Legacy `file_match × line_iou` for each GT citation, averaged. |
+
+**Scoring evidence basis:**
+- Raw method output is preserved as `predicted_evidence`.
+- The scorer applies a deterministic narrowing post-process to create `scored_predicted_evidence`.
+- Span metrics and citation-support judge use `scored_predicted_evidence`.
+- Narrowing uses only prediction-side information: question, predicted answer, cited file text, and cited chunk lines. It does not use gold evidence.
 
 **Line range intersection:**
 - `intersection = max(0, min(pred_end, gt_end) - max(pred_start, gt_start) + 1)`
@@ -75,7 +85,7 @@
 - Each QA entry has **one authoritative evidence set** (minimal sufficient evidence to answer the question)
 - This is NOT exhaustive — it cites the lines needed, not all related code
 - A prediction citing a **superset** (more lines/files than GT) is NOT penalized on file-level metrics
-- Partial overlap (right file, wrong lines) earns partial credit via `line_iou`, not 0
+- Partial overlap (right file, broad/wrong lines) earns separate coverage and span-tightness scores. `evidence_line_iou` is retained only as a legacy diagnostic.
 
 ---
 

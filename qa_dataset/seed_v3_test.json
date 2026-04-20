@@ -1,0 +1,1107 @@
+[
+  {
+    "id": "fastapi_v3_01",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "In FastAPI's UploadFile class, which public file metadata attributes and async file methods are exposed directly in fastapi/datastructures.py?",
+    "answer": "FastAPI's UploadFile class subclasses StarletteUploadFile. It exposes metadata attributes file, filename, size, headers, and content_type, and it defines async write(), read(), seek(), and close() methods that delegate to the Starlette superclass.",
+    "evidence": [
+      {
+        "file": "fastapi/datastructures.py",
+        "line_start": 21,
+        "line_end": 130
+      }
+    ],
+    "grading_notes": "Easy extractive: answer must name UploadFile, the metadata attributes, and the async methods. Do not require broader request parsing or OpenAPI details."
+  },
+  {
+    "id": "fastapi_v3_02",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does FastAPI's request_validation_exception_handler return for a RequestValidationError?",
+    "answer": "request_validation_exception_handler returns a JSONResponse with status_code 422 and content {'detail': jsonable_encoder(exc.errors())}.",
+    "evidence": [
+      {
+        "file": "fastapi/exception_handlers.py",
+        "line_start": 20,
+        "line_end": 26
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention JSONResponse, status code 422, and jsonable_encoder(exc.errors())."
+  },
+  {
+    "id": "lambda_v3_01",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "In the AWS Lambda blank-python sample, what AWS API does lambda_handler call and what value does it return?",
+    "answer": "The blank-python lambda_handler calls client.get_account_settings() on a boto3 Lambda client and returns response['AccountUsage'].",
+    "evidence": [
+      {
+        "file": "sample-apps/blank-python/function/lambda_function.py",
+        "line_start": 13,
+        "line_end": 21
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention get_account_settings() and AccountUsage. No need to discuss logging unless included as extra context."
+  },
+  {
+    "id": "lambda_v3_02",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "In templates/function-inline.yml, which inline Lambda handler function is configured and what IAM action does its execution role allow?",
+    "answer": "The template configures Handler: index.handler for the inline Lambda function. Its execution role includes an inline policy named read-lambdasettings that allows the lambda:GetAccountSettings action on Resource '*'.",
+    "evidence": [
+      {
+        "file": "templates/function-inline.yml",
+        "line_start": 18,
+        "line_end": 33
+      },
+      {
+        "file": "templates/function-inline.yml",
+        "line_start": 53,
+        "line_end": 66
+      }
+    ],
+    "grading_notes": "Easy but two local spans in one file: must name index.handler and lambda:GetAccountSettings. Do not require EventBridge scheduled rule details."
+  },
+  {
+    "id": "fastapi_v3_03",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does FastAPI's jsonable_encoder handle Pydantic models, dictionaries, and sequence containers?",
+    "answer": "jsonable_encoder first handles custom encoders, then for BaseModel objects it calls model_dump(mode='json', include/exclude/by_alias/exclude_* options) and recursively passes the resulting dict back to jsonable_encoder. For dictionaries, it filters allowed keys and recursively encodes each key and value. For list, set, frozenset, GeneratorType, tuple, and deque, it builds a list by recursively encoding each item.",
+    "evidence": [
+      {
+        "file": "fastapi/encoders.py",
+        "line_start": 214,
+        "line_end": 241
+      },
+      {
+        "file": "fastapi/encoders.py",
+        "line_start": 264,
+        "line_end": 315
+      }
+    ],
+    "grading_notes": "Medium abstractive: must synthesize three branches: BaseModel, dict, and sequence containers. Exact prose is flexible, but recursive encoding must be mentioned."
+  },
+  {
+    "id": "lambda_v3_03",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "In the file-processing-python Lambda sample, what happens to an uploaded PDF object from the S3 event?",
+    "answer": "For each S3 event record, the handler reads the bucket and URL-decoded object key, creates temporary /tmp download and output paths, and only processes keys ending in .pdf. It downloads the PDF from S3, calls encrypt_pdf() to write an encrypted PDF using pypdf, appends an _encrypted suffix to the filename, and uploads the encrypted file to a bucket named '<original-bucket>-encrypted'.",
+    "evidence": [
+      {
+        "file": "sample-apps/file-processing-python/lambda_function.py",
+        "line_start": 11,
+        "line_end": 24
+      },
+      {
+        "file": "sample-apps/file-processing-python/lambda_function.py",
+        "line_start": 27,
+        "line_end": 46
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention S3 event record, .pdf filter, download_file, encrypt_pdf, add_encrypted_suffix, and upload_file."
+  },
+  {
+    "id": "fastapi_v3_04",
+    "dataset": "fastapi",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "medium",
+    "question": "Trace how FastAPI recognizes a BackgroundTasks parameter and injects a BackgroundTasks instance during dependency solving.",
+    "answer": "FastAPI exposes BackgroundTasks as a subclass of StarletteBackgroundTasks in fastapi/background.py. In dependency analysis, add_non_field_param_to_dependency checks whether a parameter type is a subclass of StarletteBackgroundTasks and records dependant.background_tasks_param_name. Later, solve_dependencies creates BackgroundTasks() if none exists and assigns it into values under that parameter name.",
+    "evidence": [
+      {
+        "file": "fastapi/background.py",
+        "line_start": 11,
+        "line_end": 61
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 374,
+        "line_end": 376
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 717,
+        "line_end": 719
+      }
+    ],
+    "grading_notes": "Medium multi-hop: must connect background.py class definition with dependencies/utils.py recognition and injection. Do not accept answers that only describe user-facing background task docs."
+  },
+  {
+    "id": "fastapi_v3_05",
+    "dataset": "fastapi",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "hard",
+    "question": "Trace the implementation chain that moves route decorator metadata such as tags, summary, description, and operation_id into OpenAPI operation metadata.",
+    "answer": "A route decorator helper such as get() passes metadata arguments like tags, summary, description, and operation_id into self.api_route(). api_route() returns a decorator that calls self.add_api_route() with those same metadata values. add_api_route() constructs the configured route_class, normally APIRoute, passing tags, summary, description, operation_id, and related OpenAPI fields into the APIRoute constructor. APIRoute.__init__ stores these values as attributes including self.tags, self.summary, self.description, self.operation_id, and self.unique_id. OpenAPI generation then reads route.tags, route.summary/description, and route.operation_id or route.unique_id in get_openapi_operation_metadata().",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 2177,
+        "line_end": 2202
+      },
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 1415,
+        "line_end": 1475
+      },
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 1332,
+        "line_end": 1413
+      },
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 807,
+        "line_end": 925
+      },
+      {
+        "file": "fastapi/openapi/utils.py",
+        "line_start": 239,
+        "line_end": 260
+      }
+    ],
+    "grading_notes": "Hard multi-hop: must cover decorator helper -> api_route -> add_api_route -> APIRoute attributes -> get_openapi_operation_metadata. This is intentionally not easy/single-hop because multiple adjacent definitions are required."
+  },
+  {
+    "id": "fastapi_v3_06",
+    "dataset": "fastapi",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "hard",
+    "question": "Trace how FastAPI parses a JSON request body in routing.py and then validates body parameters in dependencies/utils.py.",
+    "answer": "In routing.py, get_request_handler reads the request body when body_field exists. For non-form bodies it reads request.body(), checks the content type, parses JSON with request.json() for application/json or +json content, and otherwise keeps raw body bytes. It then calls solve_dependencies(..., body=body, ...). In dependencies/utils.py, solve_dependencies calls request_body_to_args() when dependant.body_params exist. request_body_to_args validates either the single body field at loc ('body',) or each declared body field at loc ('body', alias), using _validate_value_with_model_field, and returns values plus validation errors.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 397,
+        "line_end": 460
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 717,
+        "line_end": 730
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 948,
+        "line_end": 995
+      }
+    ],
+    "grading_notes": "Hard multi-hop: must mention routing.py body parsing and solve_dependencies handoff, then request_body_to_args validation. Penalize answers that only describe Pydantic generally."
+  },
+  {
+    "id": "lambda_v3_04",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What IAM permissions does iam-policies/console-dynamodb.json grant for DynamoDB streams/tables and Lambda event source mappings?",
+    "answer": "The policy allows DynamoDB DescribeStream, DescribeTable, and UpdateTable on DynamoDB table ARNs, plus ListStreams and ListTables on all resources. It also allows Lambda GetPolicy on Lambda function ARNs and Lambda CreateEventSourceMapping, DeleteEventSourceMapping, GetEventSourceMapping, ListEventSourceMappings, and UpdateEventSourceMapping on all resources.",
+    "evidence": [
+      {
+        "file": "iam-policies/console-dynamodb.json",
+        "line_start": 1,
+        "line_end": 44
+      }
+    ],
+    "grading_notes": "Medium abstractive: must group DynamoDB table/stream permissions separately from Lambda event source mapping permissions. Exact Sid names are optional."
+  },
+  {
+    "id": "hybrid_v3_01",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare the concrete file-handling mechanisms in FastAPI's UploadFile class and the AWS Lambda file-processing-python sample.",
+    "answer": "FastAPI's UploadFile represents an uploaded request file as an object wrapping StarletteUploadFile. It exposes the underlying standard Python file object through the file attribute plus filename, size, headers, and content_type, and provides async write/read/seek/close methods that delegate to the superclass. The Lambda file-processing-python sample handles files operationally from S3: it reads bucket/key from each S3 event record, writes the downloaded PDF to /tmp, encrypts it with pypdf into another /tmp path, adds an _encrypted suffix, and uploads the result to a '<bucket>-encrypted' S3 bucket.",
+    "evidence": [
+      {
+        "file": "fastapi/datastructures.py",
+        "line_start": 21,
+        "line_end": 130
+      },
+      {
+        "file": "sample-apps/file-processing-python/lambda_function.py",
+        "line_start": 11,
+        "line_end": 24
+      },
+      {
+        "file": "sample-apps/file-processing-python/lambda_function.py",
+        "line_start": 27,
+        "line_end": 46
+      }
+    ],
+    "grading_notes": "Hybrid hard synthesis: must cover both sides and compare representation/wrapper semantics in FastAPI versus S3 download/process/upload workflow in Lambda. Penalize answers that only discuss one side."
+  },
+  {
+    "id": "fastapi_v3_07",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does FastAPI's http_exception_handler return when the status code allows a response body?",
+    "answer": "http_exception_handler reads optional headers from exc.headers. If the status code can have a body, it returns a JSONResponse containing {'detail': exc.detail}, using exc.status_code and the same headers.",
+    "evidence": [
+      {
+        "file": "fastapi/exception_handlers.py",
+        "line_start": 11,
+        "line_end": 17
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention JSONResponse, detail from exc.detail, status_code from exc.status_code, and headers. Also acceptable to mention the no-body Response branch."
+  },
+  {
+    "id": "fastapi_v3_08",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does FastAPI handle WebSocketRequestValidationError in its default websocket_request_validation_exception_handler?",
+    "answer": "websocket_request_validation_exception_handler closes the WebSocket with code WS_1008_POLICY_VIOLATION and sets the close reason to jsonable_encoder(exc.errors()).",
+    "evidence": [
+      {
+        "file": "fastapi/exception_handlers.py",
+        "line_start": 29,
+        "line_end": 34
+      }
+    ],
+    "grading_notes": "Easy extractive: must name websocket.close(), WS_1008_POLICY_VIOLATION, and jsonable_encoder(exc.errors())."
+  },
+  {
+    "id": "fastapi_v3_09",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "Which default exception handlers does FastAPI register during application initialization?",
+    "answer": "During initialization FastAPI ensures default handlers for HTTPException, RequestValidationError, and WebSocketRequestValidationError. They map respectively to http_exception_handler, request_validation_exception_handler, and websocket_request_validation_exception_handler.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 1002,
+        "line_end": 1013
+      }
+    ],
+    "grading_notes": "Easy extractive: must name all three exception classes and their handler functions."
+  },
+  {
+    "id": "fastapi_v3_10",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does FastAPI cache the OpenAPI schema inside FastAPI.openapi()?",
+    "answer": "FastAPI.openapi() checks self.openapi_schema. If it is empty, it calls get_openapi() with app metadata, routes, webhooks, tags, servers, and related settings, stores the result in self.openapi_schema, and then returns self.openapi_schema on this and later calls.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 1069,
+        "line_end": 1100
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention the self.openapi_schema cache, the get_openapi() call, and returning the cached schema."
+  },
+  {
+    "id": "fastapi_v3_11",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What documentation-related routes does FastAPI.setup() add when OpenAPI and docs URLs are enabled?",
+    "answer": "FastAPI.setup() adds the OpenAPI JSON route at self.openapi_url, a Swagger UI HTML route at self.docs_url, an OAuth2 redirect route at self.swagger_ui_oauth2_redirect_url when configured, and a ReDoc HTML route at self.redoc_url. These routes are added with include_in_schema=False.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 1102,
+        "line_end": 1155
+      }
+    ],
+    "grading_notes": "Medium abstractive: must identify OpenAPI JSON, Swagger UI, optional OAuth2 redirect, and ReDoc route registration. Do not accept answers that only mention '/docs'."
+  },
+  {
+    "id": "fastapi_v3_12",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What do DefaultPlaceholder and Default() do in FastAPI's datastructures.py?",
+    "answer": "DefaultPlaceholder stores a value in self.value, returns bool(self.value) from __bool__, and compares equal to another DefaultPlaceholder with the same value. Default(value) simply returns DefaultPlaceholder(value), typed as the original default type.",
+    "evidence": [
+      {
+        "file": "fastapi/datastructures.py",
+        "line_start": 153,
+        "line_end": 181
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention value storage and that Default() constructs a DefaultPlaceholder. Bool/equality details should be included for full credit."
+  },
+  {
+    "id": "fastapi_v3_13",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does FastAPI's BackgroundTasks.add_task() add a background callable?",
+    "answer": "FastAPI's BackgroundTasks subclass exposes add_task(func, *args, **kwargs). The method is documented as adding a function to run after the response is sent, and its implementation delegates directly to super().add_task(func, *args, **kwargs).",
+    "evidence": [
+      {
+        "file": "fastapi/background.py",
+        "line_start": 11,
+        "line_end": 61
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention post-response background execution and the super().add_task delegation."
+  },
+  {
+    "id": "fastapi_v3_14",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does FastAPI's serialize_response validate and serialize endpoint return values when a response field exists?",
+    "answer": "When a response field exists, serialize_response validates response_content at loc ('response',), either directly for coroutine endpoints or in a threadpool for sync endpoints. If validation errors exist, it raises ResponseValidationError with the errors, body, and endpoint context. Otherwise it serializes the validated value with field.serialize_json or field.serialize using include/exclude/by_alias/exclude_* options. If no field exists, it falls back to jsonable_encoder(response_content).",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 273,
+        "line_end": 313
+      }
+    ],
+    "grading_notes": "Medium abstractive: must distinguish validate -> possible ResponseValidationError -> serializer path from the no-field jsonable_encoder fallback."
+  },
+  {
+    "id": "fastapi_v3_15",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What response arguments does FastAPI's _build_response_args() derive from solved_result and status_code?",
+    "answer": "_build_response_args() starts with background set to solved_result.background_tasks. It chooses a current status code from the explicit status_code argument or solved_result.response.status_code, adds it if present, and then lets solved_result.response.status_code override when that value exists.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 329,
+        "line_end": 344
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention background_tasks and the explicit/default/override status_code behavior."
+  },
+  {
+    "id": "fastapi_v3_16",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does FastAPI's request handler decide whether to parse the request body as JSON, form data, or raw bytes?",
+    "answer": "The request handler reads a body only when body_field exists. If the body is form data, it awaits request.form() and registers body.close() for cleanup. Otherwise it reads request.body(); if bytes exist and there is no content type under non-strict mode, or the content type is application/json or ends with +json, it awaits request.json() and uses that JSON body. If JSON parsing is not selected, it keeps the raw body bytes.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 397,
+        "line_end": 422
+      }
+    ],
+    "grading_notes": "Medium abstractive: must cover form branch, JSON content-type branch, and raw bytes fallback. Do not accept generic 'FastAPI parses JSON with Pydantic' answers."
+  },
+  {
+    "id": "fastapi_v3_17",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What validation error does FastAPI raise when JSON body parsing fails in get_request_handler?",
+    "answer": "On json.JSONDecodeError, FastAPI constructs a RequestValidationError containing one error with type 'json_invalid', loc ('body', e.pos), msg 'JSON decode error', input {}, and ctx {'error': e.msg}; it attaches the original body document and endpoint context, then raises it from the JSON decode exception.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 423,
+        "line_end": 437
+      }
+    ],
+    "grading_notes": "Easy extractive: must identify RequestValidationError and the json_invalid/body-position structure."
+  },
+  {
+    "id": "fastapi_v3_18",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "Which route metadata and dependency/body-processing fields does APIRoute.__init__ store for a path operation?",
+    "answer": "APIRoute.__init__ stores path and endpoint, metadata such as response_model, summary, response_description, deprecated, operation_id, include_in_schema, tags, responses, name, methods, unique_id, status_code, response_class, callbacks, openapi_extra, and strict_content_type. It also builds dependency/body-processing state by calling get_dependant(), adding parameterless dependencies, flattening the dependant, deciding embed_body_fields, creating body_field with get_body_field(), and then wrapping the route handler with request_response(self.get_route_handler()).",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 807,
+        "line_end": 986
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention both stored route metadata and dependency/body handler construction. Do not require every attribute name, but summary/tags/responses/status and dependant/body_field should appear."
+  },
+  {
+    "id": "fastapi_v3_19",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does APIRoute.matches() add to the child scope after a successful route match?",
+    "answer": "APIRoute.matches() calls the parent matches() method. If the match is not Match.NONE, it stores the route object itself in child_scope['route'] before returning the match and child_scope.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 994,
+        "line_end": 998
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention child_scope['route'] = self on non-NONE matches."
+  },
+  {
+    "id": "fastapi_v3_20",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "Which non-field parameter annotations does FastAPI map directly onto a Dependant in add_non_field_param_to_dependency()?",
+    "answer": "add_non_field_param_to_dependency() maps Request to dependant.request_param_name, WebSocket to websocket_param_name, HTTPConnection to http_connection_param_name, Response to response_param_name, StarletteBackgroundTasks to background_tasks_param_name, and SecurityScopes to security_scopes_param_name. It returns True for those cases and None otherwise.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 359,
+        "line_end": 380
+      }
+    ],
+    "grading_notes": "Easy extractive: must name the recognized annotation types and the Dependant fields they populate."
+  },
+  {
+    "id": "fastapi_v3_21",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does request_params_to_args() handle aliases, headers, and validation for path/query/header/cookie parameters?",
+    "answer": "request_params_to_args() first handles the empty-fields case. For a single non-embedded Pydantic model parameter it expands the model fields and uses the model param location. For headers, it applies convert_underscores by turning a field alias equal to the field name into a hyphenated header name. It collects processed and extra received parameters, then validates either the single model field at loc (field_info.in_.value,) or each normal field at loc (field_info.in_.value, validation_alias), accumulating values and errors.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 781,
+        "line_end": 860
+      }
+    ],
+    "grading_notes": "Medium abstractive: must cover header underscore conversion, single-model special case, and per-field validation locations."
+  },
+  {
+    "id": "fastapi_v3_22",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does FastAPI extract file values from multipart form bodies before body validation?",
+    "answer": "_extract_form_body() iterates over body fields and reads UploadFile values into bytes when the field is a File parameter annotated as bytes or optional bytes. For File parameters containing a sequence of bytes, it reads each uploaded file, serializes the sequence value, and stores it under the validation alias. It also preserves form keys that are not declared body fields, using either the single value or the full list.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 909,
+        "line_end": 945
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention UploadFile.read(), bytes field handling, bytes sequence handling, aliases, and preservation of undeclared form keys."
+  },
+  {
+    "id": "fastapi_v3_23",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does request_body_to_args() validate single versus multiple body fields?",
+    "answer": "request_body_to_args() requires body_fields and detects the single non-embedded body-field case. For form data with a single BaseModel body field it expands cached model fields and first extracts form values. If there is a single non-embedded field, it validates the whole processed body at loc ('body',) and returns that one field value. Otherwise it validates each body field at loc ('body', validation_alias), collecting values and errors per field.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 948,
+        "line_end": 995
+      }
+    ],
+    "grading_notes": "Medium abstractive: must distinguish single non-embedded validation from per-field validation and mention form extraction when applicable."
+  },
+  {
+    "id": "fastapi_v3_24",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does get_body_field() choose the combined request body field used for schema generation?",
+    "answer": "get_body_field() returns None when there are no body params and returns the first body param directly when embedding is not needed. When embedding is needed, it creates a BodyModel from all body params, marks the combined field required only if any body param is required, aliases it as 'body', chooses File if any body param is File, Form if any is Form, otherwise Body, preserves a common media_type when all Body params share one, and returns a created ModelField named 'body'.",
+    "evidence": [
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 998,
+        "line_end": 1048
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention None/no-embed cases, BodyModel creation, File/Form/Body selection, required/default behavior, and alias 'body'."
+  },
+  {
+    "id": "fastapi_v3_25",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does APIKeyBase build its OpenAPI model and handle missing API keys?",
+    "answer": "APIKeyBase stores auto_error, creates an APIKey OpenAPI model with the configured location, name, and description, and sets scheme_name from the explicit name or class name. Its missing-key error is an HTTPException with status 401, detail 'Not authenticated', and WWW-Authenticate 'APIKey'. check_api_key raises that error when auto_error is true, returns None when optional, or returns the provided key.",
+    "evidence": [
+      {
+        "file": "fastapi/security/api_key.py",
+        "line_start": 11,
+        "line_end": 50
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention APIKey model construction and auto_error behavior for missing keys."
+  },
+  {
+    "id": "fastapi_v3_26",
+    "dataset": "fastapi",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "medium",
+    "question": "Compare how APIKeyQuery, APIKeyHeader, and APIKeyCookie retrieve the API key from a request.",
+    "answer": "All three classes initialize APIKeyBase with a different APIKeyIn location, then their __call__ methods read from the matching request container and pass the result to check_api_key(). APIKeyQuery reads request.query_params.get(self.model.name), APIKeyHeader reads request.headers.get(self.model.name), and APIKeyCookie reads request.cookies.get(self.model.name).",
+    "evidence": [
+      {
+        "file": "fastapi/security/api_key.py",
+        "line_start": 120,
+        "line_end": 142
+      },
+      {
+        "file": "fastapi/security/api_key.py",
+        "line_start": 220,
+        "line_end": 230
+      },
+      {
+        "file": "fastapi/security/api_key.py",
+        "line_start": 308,
+        "line_end": 318
+      }
+    ],
+    "grading_notes": "Medium cross-span comparison: must distinguish query_params, headers, and cookies and mention check_api_key()."
+  },
+  {
+    "id": "fastapi_v3_27",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does HTTPBase parse the Authorization header and represent credentials?",
+    "answer": "HTTPBase.__call__ reads request.headers['Authorization'], parses it with get_authorization_scheme_param(), and if authorization, scheme, or credentials are missing it either raises the not-authenticated HTTPException or returns None depending on auto_error. When present, it returns HTTPAuthorizationCredentials with the parsed scheme and credentials.",
+    "evidence": [
+      {
+        "file": "fastapi/security/http.py",
+        "line_start": 69,
+        "line_end": 102
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention Authorization header parsing, auto_error branch, and HTTPAuthorizationCredentials."
+  },
+  {
+    "id": "fastapi_v3_28",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does HTTPBasic decode and validate Basic authentication credentials?",
+    "answer": "HTTPBasic.__call__ reads the Authorization header and requires the scheme to be basic. It base64-decodes the parameter as ASCII, raises the not-authenticated error on decode failures or when the decoded string lacks a colon separator, then returns HTTPBasicCredentials with the username and password split around the first colon.",
+    "evidence": [
+      {
+        "file": "fastapi/security/http.py",
+        "line_start": 197,
+        "line_end": 219
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention basic scheme check, b64decode, colon partition, and HTTPBasicCredentials."
+  },
+  {
+    "id": "fastapi_v3_29",
+    "dataset": "fastapi",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does HTTPBearer validate bearer authentication credentials?",
+    "answer": "HTTPBearer.__call__ reads and parses the Authorization header. It rejects missing authorization, scheme, or credentials according to auto_error, then also rejects the request when the scheme lowercased is not 'bearer'. When valid, it returns HTTPAuthorizationCredentials containing the parsed scheme and credentials.",
+    "evidence": [
+      {
+        "file": "fastapi/security/http.py",
+        "line_start": 299,
+        "line_end": 316
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention bearer scheme enforcement and HTTPAuthorizationCredentials return."
+  },
+  {
+    "id": "fastapi_v3_30",
+    "dataset": "fastapi",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "hard",
+    "question": "How do OAuth2PasswordBearer initialization and request-time token extraction work together?",
+    "answer": "OAuth2PasswordBearer.__init__ defaults scopes to an empty dict, builds an OAuthFlowsModel containing a password flow with tokenUrl, refreshUrl, and scopes, then initializes the OAuth2 base class with flows, scheme_name, description, and auto_error. At request time, __call__ reads the Authorization header, parses scheme and token, requires the scheme to be bearer unless auto_error is false, and returns the bearer token parameter.",
+    "evidence": [
+      {
+        "file": "fastapi/security/oauth2.py",
+        "line_start": 442,
+        "line_end": 535
+      },
+      {
+        "file": "fastapi/security/oauth2.py",
+        "line_start": 536,
+        "line_end": 544
+      }
+    ],
+    "grading_notes": "Hard cross-span: must cover both initialization of OAuth password flow and request-time bearer token extraction."
+  },
+  {
+    "id": "lambda_v3_05",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "In the blank-nodejs Lambda sample, how is the Lambda SDK client created and what does the handler return?",
+    "answer": "The sample creates a LambdaClient outside the handler and wraps it with AWSXRay.captureAWSv3Client for reuse. The handler logs record bodies plus environment, context, and event details, then returns getAccountSettings(), which sends a new GetAccountSettingsCommand through the captured Lambda client.",
+    "evidence": [
+      {
+        "file": "sample-apps/blank-nodejs/function/index.js",
+        "line_start": 1,
+        "line_end": 27
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention AWSXRay.captureAWSv3Client(new LambdaClient()) and GetAccountSettingsCommand."
+  },
+  {
+    "id": "lambda_v3_06",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "In the blank-go Lambda sample, what does callLambda() do and what request/context information does handleRequest log?",
+    "answer": "callLambda() builds a GetAccountSettingsInput, creates a GetAccountSettingsRequest from the Lambda client, sends the request, marshals resp.AccountUsage to JSON, and returns that JSON string with any error. handleRequest logs the SQS event, AWS_REGION, all environment variables, the Lambda request ID, the function name, and the context deadline before calling callLambda() and returning either 'ERROR' with the error or the usage string.",
+    "evidence": [
+      {
+        "file": "sample-apps/blank-go/function/main.go",
+        "line_start": 16,
+        "line_end": 49
+      }
+    ],
+    "grading_notes": "Medium abstractive: must cover both callLambda() API behavior and handleRequest logging. Do not accept answers that only say it calls GetAccountSettings."
+  },
+  {
+    "id": "lambda_v3_07",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does the java-basic Handler class do with the incoming event?",
+    "answer": "The java-basic Handler implements RequestHandler<Map<String,String>, Void>. In handleRequest it obtains the LambdaLogger from the context, logs 'EVENT TYPE: ' plus event.getClass(), and returns null.",
+    "evidence": [
+      {
+        "file": "sample-apps/java-basic/src/main/java/example/Handler.java",
+        "line_start": 10,
+        "line_end": 19
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention RequestHandler<Map<String,String>, Void>, logging event.getClass(), and returning null."
+  },
+  {
+    "id": "lambda_v3_08",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does the java-basic HandlerStream sample transform an input stream into an output stream response?",
+    "answer": "HandlerStream implements RequestStreamHandler. It uses a static ObjectMapper to read an Order record from the input stream, calls processOrder(order), creates an OrderAccepted record from order.orderId, and writes that OrderAccepted object to the output stream. The file defines Order, Item, and OrderAccepted records with JsonProperty annotations.",
+    "evidence": [
+      {
+        "file": "sample-apps/java-basic/src/main/java/example/HandlerStream.java",
+        "line_start": 17,
+        "line_end": 39
+      }
+    ],
+    "grading_notes": "Medium abstractive: must describe input stream deserialization, processOrder, OrderAccepted creation, and output serialization."
+  },
+  {
+    "id": "lambda_v3_09",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does HandlerDynamoDB return from a DynamodbEvent?",
+    "answer": "HandlerDynamoDB implements RequestHandler<DynamodbEvent, List<String>>. It logs the event type, iterates over event.getRecords(), adds each DynamodbStreamRecord's getEventName() value to an ArrayList, and returns that list of operation names.",
+    "evidence": [
+      {
+        "file": "sample-apps/java-events/src/main/java/example/HandlerDynamoDB.java",
+        "line_start": 13,
+        "line_end": 26
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention event.getRecords(), record.getEventName(), and returning a List<String>."
+  },
+  {
+    "id": "lambda_v3_10",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does HandlerS3 derive the string it returns for an S3 event?",
+    "answer": "HandlerS3 takes the first S3 event record, reads the source bucket name with record.getS3().getBucket().getName(), reads the URL-decoded object key with record.getS3().getObject().getUrlDecodedKey(), logs the record, bucket, and key, and returns srcBucket + '/' + srcKey.",
+    "evidence": [
+      {
+        "file": "sample-apps/java-events/src/main/java/example/HandlerS3.java",
+        "line_start": 10,
+        "line_end": 26
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention first record, bucket name, URL-decoded key, and bucket/key return string."
+  },
+  {
+    "id": "lambda_v3_11",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What does the layer-python Lambda function do with the requests library?",
+    "answer": "The function imports requests, prints the installed requests.__version__, sends requests.get('https://api.github.com/'), and returns a dict with statusCode set to request.status_code and body set to request.text.",
+    "evidence": [
+      {
+        "file": "sample-apps/layer-python/function/lambda_function.py",
+        "line_start": 1,
+        "line_end": 10
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention requests.__version__, GET to GitHub API, statusCode, and body."
+  },
+  {
+    "id": "lambda_v3_12",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What NumPy array does the layer-python function-numpy sample create and what response does it return?",
+    "answer": "The function creates x = np.arange(15, dtype=np.int64).reshape(3, 5), prints the array, and returns statusCode 200 with body json.dumps('Hello from Lambda!').",
+    "evidence": [
+      {
+        "file": "sample-apps/layer-python/function-numpy/lambda_function.py",
+        "line_start": 1,
+        "line_end": 13
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention np.arange(15, dtype=np.int64).reshape(3, 5), statusCode 200, and Hello from Lambda."
+  },
+  {
+    "id": "lambda_v3_13",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "How does the layer-nodejs TypeScript Lambda sample use lodash to build its response body?",
+    "answer": "The sample defines three users and uses _.findLastIndex(users, callback) to find the last user whose user field equals 'Pat'. The handler returns statusCode 200 and a JSON string body containing the found index plus the matching user's user value.",
+    "evidence": [
+      {
+        "file": "sample-apps/layer-nodejs/function-ts/index.ts",
+        "line_start": 15,
+        "line_end": 29
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention _.findLastIndex, matching 'Pat', statusCode 200, and body built from index and users[out].user."
+  },
+  {
+    "id": "lambda_v3_14",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does the nodejs-apig SAM template connect an API Gateway endpoint to a Lambda function?",
+    "answer": "The template defines an AWS::Serverless::Api named api with StageName api, tracing enabled, and OpenAPI 3.0.2. It defines a serverless function using Handler index.handler, Runtime nodejs22.x, CodeUri function/., and policies for basic execution, Lambda read-only access, and X-Ray write access. The function has an Api event getEndpoint whose RestApiId references api, with Path '/' and Method GET.",
+    "evidence": [
+      {
+        "file": "sample-apps/nodejs-apig/template.yml",
+        "line_start": 6,
+        "line_end": 32
+      }
+    ],
+    "grading_notes": "Medium abstractive: must connect AWS::Serverless::Api to the function's Api event and include handler/runtime/path/method details."
+  },
+  {
+    "id": "lambda_v3_15",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What resources and event trigger does the file-processing-python SAM template define for EncryptPDF?",
+    "answer": "The template defines an EncryptPDFFunction serverless function named EncryptPDF using handler lambda_function.lambda_handler, runtime python3.12, timeout 15, memory 256, JSON logging, and AmazonS3FullAccess. It configures an S3Event trigger of type S3 on the PDFSourceBucket for s3:ObjectCreated:* events, and declares source and encrypted destination buckets named EXAMPLE-BUCKET and EXAMPLE-BUCKET-encrypted.",
+    "evidence": [
+      {
+        "file": "sample-apps/file-processing-python/template.yaml",
+        "line_start": 6,
+        "line_end": 34
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention function config, S3 ObjectCreated trigger, source bucket, destination bucket, and AmazonS3FullAccess."
+  },
+  {
+    "id": "lambda_v3_16",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What CloudWatch Logs permissions are granted by iam-policies/template-basic.json?",
+    "answer": "template-basic.json allows logs:CreateLogGroup on the regional logs ARN and allows logs:CreateLogStream plus logs:PutLogEvents on the specific log group ARN pattern arn:aws:logs:us-east-2:123456789012:log-group:[[logGroups]]:*.",
+    "evidence": [
+      {
+        "file": "iam-policies/template-basic.json",
+        "line_start": 1,
+        "line_end": 20
+      }
+    ],
+    "grading_notes": "Easy extractive: must name CreateLogGroup, CreateLogStream, PutLogEvents, and distinguish the resource scopes."
+  },
+  {
+    "id": "lambda_v3_17",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What actions does iam-policies/template-dynamodb.json grant for Lambda invocation and DynamoDB streams?",
+    "answer": "The policy allows lambda:InvokeFunction on arn:aws:lambda:us-east-2:123456789012:function:my-function* and allows DynamoDB stream actions dynamodb:DescribeStream, dynamodb:GetRecords, dynamodb:GetShardIterator, and dynamodb:ListStreams on arn:aws:dynamodb:us-east-2:123456789012:table/tableName/stream/*.",
+    "evidence": [
+      {
+        "file": "iam-policies/template-dynamodb.json",
+        "line_start": 1,
+        "line_end": 21
+      }
+    ],
+    "grading_notes": "Easy extractive: must separate Lambda invocation from DynamoDB stream permissions."
+  },
+  {
+    "id": "lambda_v3_18",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What does iam-policies/console-s3.json allow for configuring S3 triggers on Lambda?",
+    "answer": "console-s3.json grants S3 permissions to get bucket location, get bucket notification, put bucket notification, and list all buckets on arn:aws:s3:::*. It also grants Lambda permission-management actions lambda:AddPermission and lambda:RemovePermission on all functions in the account/region function ARN pattern.",
+    "evidence": [
+      {
+        "file": "iam-policies/console-s3.json",
+        "line_start": 1,
+        "line_end": 26
+      }
+    ],
+    "grading_notes": "Medium abstractive: must group S3 bucket notification permissions separately from Lambda AddPermission/RemovePermission."
+  },
+  {
+    "id": "lambda_v3_19",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What Kinesis and Lambda event source mapping permissions are in iam-policies/console-kinesis.json?",
+    "answer": "console-kinesis.json allows kinesis:DescribeStream on Kinesis stream ARNs and kinesis:ListStreams on all resources. It also allows lambda:GetPolicy on Lambda function ARNs and allows Lambda event source mapping management actions CreateEventSourceMapping, DeleteEventSourceMapping, GetEventSourceMapping, ListEventSourceMappings, and UpdateEventSourceMapping on all resources.",
+    "evidence": [
+      {
+        "file": "iam-policies/console-kinesis.json",
+        "line_start": 1,
+        "line_end": 42
+      }
+    ],
+    "grading_notes": "Medium abstractive: must distinguish Kinesis stream permissions, Lambda GetPolicy, and event source mapping actions."
+  },
+  {
+    "id": "lambda_v3_20",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "Which API Gateway and Lambda permissions are granted by iam-policies/console-apigateway.json?",
+    "answer": "console-apigateway.json grants apigateway:* on all resources. It also grants lambda:AddPermission, lambda:RemovePermission, and lambda:GetPolicy on Lambda function ARNs, plus lambda:ListEventSourceMappings on all resources.",
+    "evidence": [
+      {
+        "file": "iam-policies/console-apigateway.json",
+        "line_start": 1,
+        "line_end": 32
+      }
+    ],
+    "grading_notes": "Medium abstractive: must name apigateway:*, Lambda AddPermission/RemovePermission/GetPolicy, and ListEventSourceMappings."
+  },
+  {
+    "id": "lambda_v3_21",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_extractive",
+    "difficulty": "easy",
+    "question": "What permissions are granted by iam-policies/blueprint-sqspoller.json?",
+    "answer": "blueprint-sqspoller.json allows sqs:DeleteMessage and sqs:ReceiveMessage on arn:aws:sqs:* and allows lambda:InvokeFunction on arn:aws:lambda:us-east-2:123456789012:function:my-function*.",
+    "evidence": [
+      {
+        "file": "iam-policies/blueprint-sqspoller.json",
+        "line_start": 1,
+        "line_end": 21
+      }
+    ],
+    "grading_notes": "Easy extractive: must mention both SQS actions and Lambda InvokeFunction."
+  },
+  {
+    "id": "lambda_v3_22",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "What private networking resources and VPC endpoints does templates/vpc-private.yaml define?",
+    "answer": "vpc-private.yaml defines a private VPC with CIDR 172.31.0.0/16, two private subnets in separate availability zones with public IP launch disabled, a private route table and subnet associations, plus S3 and DynamoDB VPC endpoints attached to the private route table. The endpoint policies allow s3:* and dynamodb:* respectively, and the outputs export the VPC, subnets, and default security group.",
+    "evidence": [
+      {
+        "file": "templates/vpc-private.yaml",
+        "line_start": 1,
+        "line_end": 68
+      },
+      {
+        "file": "templates/vpc-private.yaml",
+        "line_start": 67,
+        "line_end": 102
+      }
+    ],
+    "grading_notes": "Medium abstractive: must mention private VPC/subnets, route table associations, S3 endpoint, DynamoDB endpoint, and exported outputs."
+  },
+  {
+    "id": "lambda_v3_23",
+    "dataset": "aws_lambda",
+    "reasoning_type": "single_hop_abstractive",
+    "difficulty": "medium",
+    "question": "How does templates/vpc-privatepublic.yaml route public and private subnet traffic?",
+    "answer": "vpc-privatepublic.yaml creates a public subnet and two private subnets in one VPC. It attaches an internet gateway and adds a public route 0.0.0.0/0 through that gateway for the public subnet. It also creates a NAT Gateway in the public subnet with an EIP and adds a private route 0.0.0.0/0 through that NAT Gateway for the private subnets. The template additionally attaches S3 and DynamoDB VPC endpoints to the private route table.",
+    "evidence": [
+      {
+        "file": "templates/vpc-privatepublic.yaml",
+        "line_start": 1,
+        "line_end": 65
+      },
+      {
+        "file": "templates/vpc-privatepublic.yaml",
+        "line_start": 58,
+        "line_end": 123
+      },
+      {
+        "file": "templates/vpc-privatepublic.yaml",
+        "line_start": 124,
+        "line_end": 139
+      }
+    ],
+    "grading_notes": "Medium abstractive: must distinguish public internet-gateway route from private NAT route and mention S3/DynamoDB endpoints."
+  },
+  {
+    "id": "lambda_v3_24",
+    "dataset": "aws_lambda",
+    "reasoning_type": "multi_hop_cross_file",
+    "difficulty": "hard",
+    "question": "Trace how the s3-java sample validates an image object, resizes it, and writes the resized object back to S3.",
+    "answer": "The s3-java handler reads the first S3 event record, derives srcBucket and URL-decoded srcKey, sets dstBucket to the same bucket and dstKey to 'resized-' plus the source key, then extracts the file extension with a regex. It returns early if the extension cannot be inferred or is not jpg/png. For valid images it builds an S3Client, downloads the source object, reads it into a BufferedImage, resizes it with resizeImage(), writes the resized image to a ByteArrayOutputStream using the original image type, and uploads it with putObject(). putObject sets Content-Length and image Content-Type metadata, builds a PutObjectRequest, and calls s3Client.putObject() with bytes from the output stream.",
+    "evidence": [
+      {
+        "file": "sample-apps/s3-java/src/main/java/example/Handler.java",
+        "line_start": 38,
+        "line_end": 63
+      },
+      {
+        "file": "sample-apps/s3-java/src/main/java/example/Handler.java",
+        "line_start": 64,
+        "line_end": 85
+      },
+      {
+        "file": "sample-apps/s3-java/src/main/java/example/Handler.java",
+        "line_start": 95,
+        "line_end": 122
+      },
+      {
+        "file": "sample-apps/s3-java/src/main/java/example/Handler.java",
+        "line_start": 135,
+        "line_end": 156
+      }
+    ],
+    "grading_notes": "Hard multi-hop: must cover S3 event extraction, image type validation, download/read/resize/re-encode, and PutObject upload with metadata."
+  },
+  {
+    "id": "hybrid_v3_02",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare how FastAPI exposes built-in documentation routes with how the AWS nodejs-apig sample exposes a Lambda through API Gateway.",
+    "answer": "FastAPI.setup() exposes documentation endpoints inside the application by adding routes for the OpenAPI JSON schema, Swagger UI HTML, optional Swagger OAuth2 redirect, and ReDoc HTML, all excluded from the generated schema. The nodejs-apig SAM template exposes a Lambda externally by defining an AWS::Serverless::Api and attaching an Api event to the function, with RestApiId referring to that API, Path '/', and Method GET. FastAPI's mechanism is in-process route registration for docs assets and schema, while the Lambda sample uses infrastructure configuration to connect API Gateway to a handler.",
+    "evidence": [
+      {
+        "file": "fastapi/applications.py",
+        "line_start": 1102,
+        "line_end": 1155
+      },
+      {
+        "file": "sample-apps/nodejs-apig/template.yml",
+        "line_start": 6,
+        "line_end": 32
+      }
+    ],
+    "grading_notes": "Hybrid hard: must compare mechanism, not just list endpoints. Needs FastAPI add_route docs behavior and SAM Api event wiring."
+  },
+  {
+    "id": "hybrid_v3_03",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare FastAPI's HTTPBearer request-time credential extraction with the AWS API Gateway console policy's permission model.",
+    "answer": "FastAPI's HTTPBearer is runtime request logic: it reads the Authorization header, parses scheme and credentials, rejects missing values or non-bearer schemes according to auto_error, and returns HTTPAuthorizationCredentials for valid bearer tokens. The AWS console-apigateway policy is configuration/authorization for managing integrations: it grants apigateway:* plus Lambda AddPermission, RemovePermission, GetPolicy, and ListEventSourceMappings. FastAPI validates a caller's bearer credential on an incoming request; the AWS policy grants an operator permissions to configure API Gateway and Lambda permissions.",
+    "evidence": [
+      {
+        "file": "fastapi/security/http.py",
+        "line_start": 299,
+        "line_end": 316
+      },
+      {
+        "file": "iam-policies/console-apigateway.json",
+        "line_start": 1,
+        "line_end": 32
+      }
+    ],
+    "grading_notes": "Hybrid hard: must distinguish runtime auth parsing from IAM management permissions. Penalize answers that treat IAM policy as request authentication."
+  },
+  {
+    "id": "hybrid_v3_04",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare FastAPI BackgroundTasks with the AWS file-processing-python sample's S3-triggered PDF workflow.",
+    "answer": "FastAPI BackgroundTasks is an in-process response lifecycle feature: add_task() schedules a callable to run after the response is sent and delegates storage of that task to Starlette's BackgroundTasks. The AWS file-processing-python sample is event-driven infrastructure and handler code: the SAM template invokes the function on S3 ObjectCreated events, and the handler reads each S3 record, downloads a PDF to /tmp, encrypts it, adds an encrypted suffix, and uploads it to a separate encrypted bucket. FastAPI schedules local post-response work; the Lambda sample reacts to external S3 events and performs object I/O.",
+    "evidence": [
+      {
+        "file": "fastapi/background.py",
+        "line_start": 11,
+        "line_end": 61
+      },
+      {
+        "file": "sample-apps/file-processing-python/template.yaml",
+        "line_start": 6,
+        "line_end": 34
+      },
+      {
+        "file": "sample-apps/file-processing-python/lambda_function.py",
+        "line_start": 11,
+        "line_end": 24
+      }
+    ],
+    "grading_notes": "Hybrid hard: must compare post-response task scheduling against S3 event-triggered object processing. Must include both template trigger and handler workflow."
+  },
+  {
+    "id": "hybrid_v3_05",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare FastAPI's JSON request body parsing and validation path with the java-basic HandlerStream stream-processing path.",
+    "answer": "FastAPI's request handler reads the HTTP body when a body field exists, selects form parsing, JSON parsing for application/json or +json content types, or raw bytes otherwise, then passes the body into solve_dependencies. request_body_to_args later validates either the whole body for a single non-embedded field or each body parameter at ('body', alias). The Java HandlerStream sample instead receives raw Lambda input/output streams: it deserializes an Order from the input stream with ObjectMapper, runs processOrder, creates OrderAccepted from order.orderId, and writes that object to the output stream. FastAPI integrates HTTP content-type parsing with dependency/body validation; HandlerStream performs explicit stream deserialization and serialization inside the handler.",
+    "evidence": [
+      {
+        "file": "fastapi/routing.py",
+        "line_start": 397,
+        "line_end": 460
+      },
+      {
+        "file": "fastapi/dependencies/utils.py",
+        "line_start": 948,
+        "line_end": 995
+      },
+      {
+        "file": "sample-apps/java-basic/src/main/java/example/HandlerStream.java",
+        "line_start": 17,
+        "line_end": 39
+      }
+    ],
+    "grading_notes": "Hybrid hard: must cover FastAPI parse -> solve_dependencies -> body validation and Java stream ObjectMapper input/output flow."
+  },
+  {
+    "id": "hybrid_v3_06",
+    "dataset": "hybrid",
+    "reasoning_type": "hybrid_hard_synthesis",
+    "difficulty": "hard",
+    "question": "Compare FastAPI's OpenAPI security definition generation with AWS template-basic logging permissions.",
+    "answer": "FastAPI's get_openapi_security_definitions() reads security dependencies from a flattened dependant, JSON-encodes each security scheme model, indexes it by scheme_name, merges OAuth scopes per scheme, and returns OpenAPI security definitions plus operation security requirements. AWS template-basic.json is an IAM policy for CloudWatch Logs: it allows logs:CreateLogGroup on a logs ARN and logs:CreateLogStream plus logs:PutLogEvents on a log-group ARN. FastAPI is generating API documentation/security metadata from runtime dependency objects; the AWS file grants execution-role permissions for logging.",
+    "evidence": [
+      {
+        "file": "fastapi/openapi/utils.py",
+        "line_start": 82,
+        "line_end": 105
+      },
+      {
+        "file": "iam-policies/template-basic.json",
+        "line_start": 1,
+        "line_end": 20
+      }
+    ],
+    "grading_notes": "Hybrid hard: must distinguish OpenAPI metadata generation from IAM execution permissions. Needs concrete details from both evidence spans."
+  }
+]

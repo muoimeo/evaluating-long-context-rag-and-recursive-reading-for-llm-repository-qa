@@ -22,6 +22,8 @@ def normalize_path(path: str) -> str:
         return ""
     p = path.replace("\\", "/").strip("/")
     # Strip known repo prefixes
+    if "repos/fastapi/" in p:
+        return p[p.find("repos/fastapi/") + len("repos/fastapi/"):]
     if "fastapi/" in p:
         return p[p.find("fastapi/"):]
     if "aws-lambda-developer-guide/" in p:
@@ -116,6 +118,127 @@ def _line_iou(pred: Dict, gt: Dict) -> float:
     return intersection / union
 
 
+def _line_bounds(span: Dict) -> Tuple[int, int] | None:
+    try:
+        start = int(span.get("line_start", 0))
+        end = int(span.get("line_end", 0))
+    except (ValueError, TypeError):
+        return None
+    if start <= 0 or end < start:
+        return None
+    return start, end
+
+
+def _overlap_len(a: Dict, b: Dict) -> int:
+    a_bounds = _line_bounds(a)
+    b_bounds = _line_bounds(b)
+    if not a_bounds or not b_bounds:
+        return 0
+    a_start, a_end = a_bounds
+    b_start, b_end = b_bounds
+    return max(0, min(a_end, b_end) - max(a_start, b_start) + 1)
+
+
+def _span_len(span: Dict) -> int:
+    bounds = _line_bounds(span)
+    if not bounds:
+        return 0
+    start, end = bounds
+    return end - start + 1
+
+
+def _merged_interval_len(intervals: List[Tuple[int, int]]) -> int:
+    if not intervals:
+        return 0
+    intervals = sorted(intervals)
+    merged = [intervals[0]]
+    for start, end in intervals[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end + 1:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return sum(end - start + 1 for start, end in merged)
+
+
+def citation_containment_recall(predicted: List[Dict], ground_truth: List[Dict]) -> float:
+    """
+    How much of each gold span is contained inside predicted spans on the same file.
+    This rewards chunk-level retrieval that fully contains the gold evidence.
+    """
+    if not ground_truth:
+        return 1.0 if not predicted else 0.0
+    total = 0.0
+    for gt in ground_truth:
+        gt_bounds = _line_bounds(gt)
+        if not gt_bounds:
+            continue
+        g_start, g_end = gt_bounds
+        overlaps = []
+        for pred in predicted:
+            if not _files_match(pred.get("file", ""), gt.get("file", "")):
+                continue
+            p_bounds = _line_bounds(pred)
+            if not p_bounds:
+                continue
+            p_start, p_end = p_bounds
+            start = max(g_start, p_start)
+            end = min(g_end, p_end)
+            if start <= end:
+                overlaps.append((start, end))
+        total += _merged_interval_len(overlaps) / max(1, g_end - g_start + 1)
+    return total / len(ground_truth)
+
+
+def citation_span_precision(predicted: List[Dict], ground_truth: List[Dict]) -> float:
+    """
+    Fraction of predicted citation lines that overlap a gold span on the same file.
+    This penalizes overly broad chunks without treating containment as failure.
+    """
+    if not predicted:
+        return 1.0 if not ground_truth else 0.0
+    total_pred_lines = 0
+    total_overlap = 0
+    for pred in predicted:
+        pred_bounds = _line_bounds(pred)
+        if not pred_bounds:
+            continue
+        p_start, p_end = pred_bounds
+        total_pred_lines += p_end - p_start + 1
+        overlaps = []
+        for gt in ground_truth:
+            if not _files_match(pred.get("file", ""), gt.get("file", "")):
+                continue
+            gt_bounds = _line_bounds(gt)
+            if not gt_bounds:
+                continue
+            g_start, g_end = gt_bounds
+            start = max(p_start, g_start)
+            end = min(p_end, g_end)
+            if start <= end:
+                overlaps.append((start, end))
+        total_overlap += _merged_interval_len(overlaps)
+    if total_pred_lines <= 0:
+        return 0.0
+    return total_overlap / total_pred_lines
+
+
+def citation_span_fbeta(predicted: List[Dict], ground_truth: List[Dict], beta: float = 2.0) -> float:
+    recall = citation_containment_recall(predicted, ground_truth)
+    precision = citation_span_precision(predicted, ground_truth)
+    if recall + precision == 0:
+        return 0.0
+    beta_sq = beta * beta
+    return (1 + beta_sq) * precision * recall / ((beta_sq * precision) + recall)
+
+
+def citation_weighted_span_score(predicted: List[Dict], ground_truth: List[Dict],
+                                 recall_weight: float = 0.7) -> float:
+    recall = citation_containment_recall(predicted, ground_truth)
+    precision = citation_span_precision(predicted, ground_truth)
+    return recall_weight * recall + (1.0 - recall_weight) * precision
+
+
 def line_iou_per_file(predicted: List[Dict], ground_truth: List[Dict]) -> float:
     """Average line IoU across all matched (pred, GT) file pairs."""
     pairs = _matched_pairs(predicted, ground_truth)
@@ -171,9 +294,16 @@ if __name__ == "__main__":
         print(f"\n[{item['id']}] {item['question'][:80]}...")
         for ev in item["evidence"]:
             rel = ev["file"]
+            fastapi_root_files = {"pyproject.toml", "README.md", "CONTRIBUTING.md"}
+            is_fastapi = (
+                rel.startswith("fastapi/")
+                or rel.startswith("docs_src/")
+                or rel.startswith("docs/")
+                or rel in fastapi_root_files
+            )
             disk = (
-                os.path.join(args.repo_root, "repos", rel)
-                if rel.startswith("fastapi/")
+                os.path.join(args.repo_root, "repos", "fastapi", rel)
+                if is_fastapi
                 else os.path.join(args.repo_root, "docs", "aws-lambda-developer-guide", rel)
             )
             if os.path.exists(disk):

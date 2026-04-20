@@ -4,4 +4,7 @@ dataset/
 docs_index.json
 chroma_db/
 results/
+results_context_rot/
 .env
+runs/
+archive/
