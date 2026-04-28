@@ -8,3 +8,5 @@ results_context_rot/
 .env
 runs/
 archive/
+*.docx
+*.pptx

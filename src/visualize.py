@@ -128,7 +128,7 @@ def chart1_avg_scores(df: pd.DataFrame, output_dir: str):
     metrics = [p[0] for p in pairs]
     labels = [p[1] for p in pairs]
 
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(15, 6.5))
     x = np.arange(len(METHOD_ORDER))
     width = 0.8 / max(1, len(metrics))
 
@@ -143,9 +143,11 @@ def chart1_avg_scores(df: pd.DataFrame, output_dir: str):
     ax.set_xticks(x)
     ax.set_xticklabels([METHOD_LABELS[m] for m in METHOD_ORDER])
     ax.set_ylim(0, 1.05)
-    ax.set_ylabel("Score (0 – 1)")
+    ax.set_ylabel("Score")
     ax.set_title("Overall Answer, BERTScore, and Citation Scores by Method", pad=15)
-    ax.legend(loc="upper right")
+    # Keep the legend outside the plotting area so it does not cover Method C.
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=len(labels), frameon=False)
+    fig.subplots_adjust(bottom=0.24)
     savefig(fig, os.path.join(output_dir, "1_avg_scores_comparison.png"))
 
 
