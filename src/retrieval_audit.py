@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 from config import INDEX_PATH
-from method_c_recursive import _is_docs_noise
+from method_c_iterative import _is_docs_noise
 from reranker import rerank_and_select
 from utils.retrieval_eval import (
     compute_basic_retrieval_metrics,

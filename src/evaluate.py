@@ -36,12 +36,12 @@ from pipeline_schema import (
     ERROR_TIMEOUT,
     ERROR_TOOL,
     normalize_reasoning_type,
-    resolve_recursive_top_k,
+    resolve_iterative_top_k,
 )
 
 from method_a_longcontext import run_method_a
 from method_b_rag import run_method_b
-from method_c_recursive import run_method_c
+from method_c_iterative import run_method_c
 
 
 def normalize_answer_text(answer: Any) -> str:
@@ -108,7 +108,7 @@ def run_inference(qa_file: str, method_name: str, output_dir: str,
     run_config["qa_file"] = qa_file
     run_config["num_samples"] = num_samples or len(dataset)
     if method_name == "C":
-        run_config["resolved_recursive_top_k"] = resolve_recursive_top_k(run_config, default=10)
+        run_config["resolved_iterative_top_k"] = resolve_iterative_top_k(run_config, default=10)
 
     config_out = os.path.join(output_dir, f"run_config_{method_name.lower()}_{timestamp}.json")
     with open(config_out, "w", encoding="utf-8") as f:
@@ -138,7 +138,7 @@ def run_inference(qa_file: str, method_name: str, output_dir: str,
                 elif method_name == "B":
                     result = run_method_b(question)
                 elif method_name == "C":
-                    top_k = resolve_recursive_top_k(run_config, default=10)
+                    top_k = resolve_iterative_top_k(run_config, default=10)
                     result = run_method_c(question, top_k=top_k)
                 else:
                     raise ValueError(f"Unknown method: {method_name}")

@@ -11,7 +11,8 @@ RANDOM_SEED = 42
 
 # Context window budget. Set to 50k tokens (not 100k) to:
 #   1. Be realistic — most commercial LLMs cap at 32k-128k
-#   2. Be FAIR vs RAG (top_k=5 ≈ 2500 tokens) and RLM (top_k=10 ≈ 5000 tokens)
+#   2. Be FAIR vs RAG (top_k=5 ≈ 2500 tokens) and the iterative reader
+#      (top_k=10 ≈ 5000 tokens)
 #   3. Leave buffer for system prompt + question + output generation
 MAX_CONTEXT_TOKENS = 50000
 

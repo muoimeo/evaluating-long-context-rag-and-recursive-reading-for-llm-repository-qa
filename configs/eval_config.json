@@ -22,7 +22,7 @@
     "prompt_version": "v3",
     "_notes": "Retrieves top_k*4=20 candidates, re-ranks by source-priority heuristic, returns top 5."
   },
-  "recursive": {
+  "iterative": {
     "chunk_size": 512,
     "chunk_overlap": 64,
     "top_k": 5,

@@ -10,13 +10,13 @@ Usage:
 
 Charts generated:
   1. avg_scores_table.png         — Overall accuracy/citation comparison (claim: overall ranking)
-  2. latency_boxplot.png          — Latency distribution (claim: RLM costs 3x latency)
+  2. latency_boxplot.png          ? Latency distribution
   3. accuracy_by_dataset.png      — Accuracy per dataset (claim: RAG strong on retrieval)
   4. citation_by_dataset.png      — Citation F1 per dataset (claim: LongCtx fails universally)
-  5. accuracy_by_reasoning_type.png — Acc per reasoning type (claim: RLM wins multi-hop)
-  6. token_cost_breakdown.png     — Input/output/calls (claim: RLM cost is call-driven)
+  5. accuracy_by_reasoning_type.png ? Acc per reasoning type
+  6. token_cost_breakdown.png     ? Input/output/calls
   7. error_breakdown.png          — Error types stacked (claim: each method fails differently)
-  8. pareto_frontier.png          — Accuracy vs Latency (claim: RAG practical, RLM quality)
+  8. pareto_frontier.png          ? Accuracy vs Latency
   9. citation_layer_comparison.png — File precision/recall/line-iou (claim: citation 2-layer view)
 """
 import os
@@ -232,7 +232,7 @@ def chart4_citation_by_dataset(df: pd.DataFrame, output_dir: str):
 
 
 def chart5_accuracy_by_reasoning_type(df: pd.DataFrame, output_dir: str):
-    """Chart 5: Accuracy by reasoning type — shows RLM advantage on complex types."""
+    """Chart 5: Accuracy by reasoning type."""
     col = "reasoning_type"
     if col not in df.columns or df[col].isna().all():
         print("  Skipping chart5: reasoning_type not in data")
@@ -257,13 +257,13 @@ def chart5_accuracy_by_reasoning_type(df: pd.DataFrame, output_dir: str):
     ax.set_xticklabels([rt.replace("_", "\n") for rt in rtypes], fontsize=9)
     ax.set_ylim(0, 1.05)
     ax.set_ylabel("Answer Score")
-    ax.set_title("Accuracy by Reasoning Type\n(RLM advantage grows with complexity)", pad=15)
+    ax.set_title("Accuracy by Reasoning Type", pad=15)
     ax.legend()
     savefig(fig, os.path.join(output_dir, "5_accuracy_by_reasoning_type.png"))
 
 
 def chart6_token_cost(df: pd.DataFrame, output_dir: str):
-    """Chart 6: Token usage + num_calls — shows RLM cost is call-driven."""
+    """Chart 6: Token usage + num_calls."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     # Left: token breakdown
@@ -288,7 +288,7 @@ def chart6_token_cost(df: pd.DataFrame, output_dir: str):
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.05,
                  f"{v:.1f}", ha="center", va="bottom", fontsize=10)
     ax2.set_ylabel("Mean LLM Calls per Query")
-    ax2.set_title("LLM Calls per Query\n(RLM cost is call-driven)")
+    ax2.set_title("LLM Calls per Query")
 
     fig.suptitle("Token Cost Breakdown by Method", fontsize=14, y=1.02)
     plt.tight_layout()

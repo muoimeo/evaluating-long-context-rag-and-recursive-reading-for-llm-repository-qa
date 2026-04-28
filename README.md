@@ -43,9 +43,8 @@ evidence in a single synthesis step.
 
 ### Method C: Structure-Aware Iterative Reader
 
-Implemented in [src/method_c_recursive.py](src/method_c_recursive.py). Despite
-the legacy filename, this is a bounded iterative reader rather than an
-open-ended recursive agent. It combines:
+Implemented in [src/method_c_iterative.py](src/method_c_iterative.py). This is
+a bounded iterative reader and it combines:
 
 - initial retrieval and reranking
 - quick chunk role classification (`direct`, `bridge`, `noise`)
@@ -221,5 +220,4 @@ be treated as the primary correctness metric for implementation-heavy QA.
 - Keep `configs/eval_config.json` fixed for reported runs.
 - Treat `results/` and `results_context_rot/` as local experiment outputs rather
   than version-controlled assets.
-- The filename `method_c_recursive.py` is historical; the implemented method is
-  bounded and iterative, not unbounded recursion.
+- Method C is implemented in [src/method_c_iterative.py](src/method_c_iterative.py).

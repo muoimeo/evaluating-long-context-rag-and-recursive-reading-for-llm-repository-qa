@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from config import INDEX_PATH, TOP_K_RETRIEVAL
 from method_b_rag import synthesize_answer
-from method_c_recursive import (
+from method_c_iterative import (
     MAX_EVIDENCE_SNIPPETS,
     dedupe_citations,
     final_answer as method_c_final_answer,

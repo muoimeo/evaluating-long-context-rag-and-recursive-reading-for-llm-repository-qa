@@ -1,6 +1,6 @@
 # Evaluation Protocol and Metrics
 
-[cite_start]This document defines the quantitative and qualitative metrics used to compare Method A (Long-context), Method B (RAG), and Method C (Recursive Reading)[cite: 121, 129].
+[cite_start]This document defines the quantitative and qualitative metrics used to compare Method A (Long-context), Method B (RAG), and Method C (Iterative Reading)[cite: 121, 129].
 
 ## 1. Primary Metrics
 

@@ -9,7 +9,7 @@ from config import INDEX_PATH
 from reranker import is_docs_noise
 
 # These defaults mirror the bounded iterative-reader settings in
-# method_c_recursive.py. They live here so the deterministic tool layer can be
+# method_c_iterative.py. They live here so the deterministic tool layer can be
 # reused without importing the full reader loop.
 DEFAULT_MAX_CANDIDATES = 16
 DEFAULT_MAX_TOOL_RESULTS = 3
@@ -75,6 +75,15 @@ def load_index_docs() -> List[Dict[str, Any]]:
         payload = json.load(f)
     _INDEX_DOCS_CACHE = payload if isinstance(payload, list) else []
     return _INDEX_DOCS_CACHE
+
+
+def get_index_docs_cache() -> List[Dict[str, Any]] | None:
+    return _INDEX_DOCS_CACHE
+
+
+def set_index_docs_cache(docs: List[Dict[str, Any]] | None) -> None:
+    global _INDEX_DOCS_CACHE
+    _INDEX_DOCS_CACHE = docs
 
 
 def doc_to_result(doc: Dict[str, Any], score: float = 0.01) -> Dict[str, Any]:

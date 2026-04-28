@@ -1,6 +1,6 @@
 # Metric Card — Repository QA Evaluation
 
-**Project:** Evaluating Long-Context RAG and Recursive Reading for LLM Repository QA  
+**Project:** Evaluating Long-Context Prompting, RAG, and Iterative Reading for LLM Repository QA  
 **Frozen:** 2026-03-21  
 **Config Reference:** `configs/eval_config.json`
 
@@ -114,7 +114,7 @@ Report all six statistics. Never only report mean.
 | `std` | Spread |
 | `median` | Robust central tendency (less sensitive to outliers) |
 | `p75` | Upper quartile |
-| `p95` | Near-worst-case (important for RLM with occasional long chains) |
+| `p95` | Near-worst-case latency, important for multi-step iterative reading |
 | `max` | True worst case |
 
 ---

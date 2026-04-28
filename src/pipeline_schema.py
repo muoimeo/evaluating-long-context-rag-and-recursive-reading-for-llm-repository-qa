@@ -43,10 +43,10 @@ def normalize_error_type(error_type: str | None) -> str | None:
     return legacy.get(error_type, error_type)
 
 
-def resolve_recursive_top_k(run_config: Dict[str, Any], default: int = 10) -> int:
-    recursive_cfg = run_config.get("recursive", {})
-    if isinstance(recursive_cfg, dict) and recursive_cfg.get("top_k") is not None:
-        return int(recursive_cfg["top_k"])
+def resolve_iterative_top_k(run_config: Dict[str, Any], default: int = 10) -> int:
+    iterative_cfg = run_config.get("iterative", {})
+    if isinstance(iterative_cfg, dict) and iterative_cfg.get("top_k") is not None:
+        return int(iterative_cfg["top_k"])
     if run_config.get("top_k_rlm") is not None:
         return int(run_config["top_k_rlm"])
     return default
@@ -64,4 +64,3 @@ def ensure_required_fields(record: Dict[str, Any], required: Iterable[str], cont
     missing = [field for field in required if field not in record]
     if missing:
         raise ValueError(f"{context} is missing required fields: {missing}")
-
